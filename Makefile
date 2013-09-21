@@ -1,8 +1,8 @@
-.PHONY: all wc clean run-server-valgrind run-client-valgrind
+.PHONY: all wc clean run-server-valgrind run-client-valgrind test
 
 # the source files
-SRCCOMMON = protocol.c mlog.c
-SRCSERVER = server.c $(SRCCOMMON)
+SRCCOMMON = protocol.c mlog.c 
+SRCSERVER = server.c serverdb.c sqlite3.c $(SRCCOMMON)
 SRCCLIENT = client.c $(SRCCOMMON)
 
 # enable or disable logging (comment out to disable)
@@ -22,24 +22,25 @@ BINS = server client
 CFLAGS = -g -O0 -Wall -Wno-deprecated $(LOGGING)
 
 # the libraries used
-LDLIBS = -lcrypto
+LDLIBS = -lpthread -ldl -lreadline
+#LDLIBS = -lcrypto -lsqlite3
 
 # the c99 compiler
-#CC = gcc -std=c99 # use this on linus
-CC = clang # use this on os x
+CC = gcc # use this on linux
+#CC = clang # use this on os x
 
 # the output files
 all: server client
 server: $(SERVEROBJECTS)
-	$(CC) $(CFLAGS) $(LDLIBS) -o $@ $(SERVEROBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(SERVEROBJECTS) $(LDLIBS)
 client: $(CLIENTOBJECTS)
-	$(CC) $(CFLAGS) $(LDLIBS) -o $@ $ $(CLIENTOBJECTS)
+	$(CC) $(CFLAGS) -o $@ $ $(CLIENTOBJECTS) $(LDLIBS) 
 
 # other files to clean
 OTHERCLEANING = valgrind.log
 
 # dSYM's 
-DSYMS = $(BIN:=.dSYM) 
+DSYMS = $(BINS:=.dSYM) 
 
 # the dependency files
 DEPS = $(SRCSERVER:.c=.DEP) $(SRCCLIENT:.c=.DEP)
@@ -73,5 +74,14 @@ clean:
 		sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 		-e '/^$$/ d' -e 's/$$/ :/' < $*.d >> $*.DEP; \
 		rm -f $*.d
+
+test: all
+	rm -f server.log
+	clear
+	make
+	./server 1234 &
+	./client localhost 1234
+	killall server
+	cat server.log
 
 -include $(DEPS)

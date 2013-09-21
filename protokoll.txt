@@ -60,7 +60,7 @@ Meddelandetyper (koderna visas binärt):
                                                         
 Idnummer för meddelandena (koderna visas binärt):
 +--------------------+-----+
-| Typ av meddelande: | Kod |
+| Id för meddelande: | Kod |
 +--------------------+-----+
 | no                 |  00 |
 | balance            |  01 |
@@ -68,7 +68,7 @@ Idnummer för meddelandena (koderna visas binärt):
 | deposit            |  11 |
 +--------------------+-----+
 
-Exemplel:
+Exempel:
 
 NO:
 atm id: 0
