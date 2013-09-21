@@ -4,8 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
 #include "protocol.h"
 #include "serverdb.h"
+#include "mlog.h"
 
 sqlite3 *db = NULL;
 
@@ -22,7 +24,7 @@ int setup_db()
 {
 	int res = sqlite3_open(DBPATH, &db);
 	if (res != 0) {
-		fprintf(stderr, "Could not open database: %s\n",
+		mlog("server.log", "Could not open database: %s",
 				sqlite3_errmsg(db));
 		return 1;
 	}
@@ -31,7 +33,7 @@ int setup_db()
 	res = sqlite3_prepare_v2(db, BALANCE_STRING, strlen(BALANCE_STRING)+1, 
 		&balance_stmt, &unused);
 	if (res != SQLITE_OK) {
-		fprintf(stderr, "Could not prepare ('%s'): %s\n", 
+		mlog("server.log", "Could not prepare ('%s'): %s", 
 				BALANCE_STRING, sqlite3_errmsg(db));
 		return 1;
 	}
@@ -39,7 +41,7 @@ int setup_db()
 	res = sqlite3_prepare_v2(db, UPDATE_STRING, strlen(UPDATE_STRING)+1, 
 			&update_stmt, &unused);
 	if (res != SQLITE_OK) {
-		fprintf(stderr, "Could not prepare ('%s'): %s\n",
+		mlog("server.log", "Could not prepare ('%s'): %s",
 				UPDATE_STRING, sqlite3_errmsg(db));
 		return 1;
 	}
@@ -47,7 +49,7 @@ int setup_db()
 	res = sqlite3_prepare_v2(db, INSERT_STRING, strlen(INSERT_STRING)+1, 
 			&insert_stmt, &unused);
 	if (res != SQLITE_OK) {
-		fprintf(stderr, "Could not prepare ('%s'): %s\n",
+		mlog("server.log", "Could not prepare ('%s'): %s",
 				INSERT_STRING, sqlite3_errmsg(db));
 		return 1;
 	}
@@ -71,42 +73,54 @@ int close_db()
  */
 int getBalance(Message *m, uint16_t *balance)
 {
+	mlog("server.log", "getting balance for card # %d", m->card_number);
 	int toReturn = 0;
 
 	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->card_number ^ m->pin);
+	asprintf(&texthash, "%d", m->pin);
 	int texthashlen = strlen(texthash);
+	
+	*balance = 4;
 
 	if (texthash == NULL) {
-		fprintf(stderr, "Could not allocate memory for texthash.\n");
+		mlog("server.log", "Could not allocate memory for texthash.");
 		return 1;
 	} else if (sqlite3_bind_int(balance_stmt, 1, m->card_number) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind card number.\n");
+		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
 	} else if (sqlite3_bind_text(balance_stmt, 2, texthash, texthashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind pin hash.\n");
+		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
 	} else {
 		/* the statement is prepared */
-		int res;
-		while ((res = sqlite3_step(balance_stmt)) != SQLITE_DONE) {
-			switch (res) {
-			case SQLITE_BUSY:
+		int looping = 1;
+		int results = 0;
+		while (looping) {
+			int res = sqlite3_step(balance_stmt);
+			if (res == SQLITE_BUSY) {
 				sleep(10);
 				continue;
 				break;
-			case SQLITE_ERROR:
-			case SQLITE_MISUSE:
-			default:
+			} else if (res == SQLITE_DONE) {
+				break;
+			} else if (res == SQLITE_ROW) {
+				results++;
+				*balance = sqlite3_column_int(balance_stmt, 0);
+				break;
+			} else {
 				free(texthash);
-				fprintf(stderr, "Could not step: %s\n", 
+				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
 			}
 		}
 
-		*balance = sqlite3_column_int(balance_stmt, 0);
+		if (results == 0) {
+			m->message_id = MESSAGE_ID_NO;
+		}
+
+		mlog("server.log", "got balance %d for %d", *balance, m->card_number);
 	}
 
 	sqlite3_reset(balance_stmt);
@@ -118,22 +132,22 @@ int insert(Message *m)
 {
 	int toReturn = 0;
 	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->card_number ^ m->pin);
+	asprintf(&texthash, "%d", m->pin);
 	int texthashlen = strlen(texthash);
 
 	if (texthash == NULL) {
-		fprintf(stderr, "Could not allocate memory for texthash.\n");
+		mlog("server.log", "Could not allocate memory for texthash.");
 		return 1;
 	} else if (sqlite3_bind_int(insert_stmt, 1, m->card_number) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind card number: %s\n", 
+		mlog("server.log", "Could not bind card number: %s", 
 				sqlite3_errmsg(db));
 		toReturn = 1;
 	} else if (sqlite3_bind_text(insert_stmt, 2, texthash, texthashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind pin hash.\n");
+		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
 	} else if (sqlite3_bind_int(insert_stmt, 3, m->sum) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind sum.\n");
+		mlog("server.log", "Could not bind sum.");
 		toReturn = 1;
 	} else {
 		/* the statement is prepared */
@@ -148,7 +162,7 @@ int insert(Message *m)
 			case SQLITE_MISUSE:
 			default:
 				free(texthash);
-				fprintf(stderr, "Could not step: %s\n", 
+				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
 			}
@@ -165,21 +179,21 @@ int update(Message *m)
 	int toReturn = 0;
 
 	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->card_number ^ m->pin);
+	asprintf(&texthash, "%d", m->pin);
 	int texthashlen = strlen(texthash);
 
 	if (texthash == NULL) {
-		fprintf(stderr, "Could not allocate memory for texthash.\n");
+		mlog("server.log", "Could not allocate memory for texthash.");
 		return 1;
 	} else if (sqlite3_bind_int(update_stmt, 1, m->sum) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind sum.\n");
+		mlog("server.log", "Could not bind sum.");
 		toReturn = 1;
 	} else if (sqlite3_bind_int(update_stmt, 2, m->card_number) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind card number.\n");
+		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
 	} else if (sqlite3_bind_text(update_stmt, 3, texthash, texthashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
-		fprintf(stderr, "Could not bind pin hash.\n");
+		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
 	} else {
 		/* the statement is prepared */
@@ -194,7 +208,7 @@ int update(Message *m)
 			case SQLITE_MISUSE:
 			default:
 				free(texthash);
-				fprintf(stderr, "Could not step: %s\n", 
+				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
 			}
