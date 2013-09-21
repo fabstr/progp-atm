@@ -1,0 +1,128 @@
+        +---+---+---+---+---+---+---+---+
+    Bit | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+        +---+---+---+---+---+---+---+---+
+Byte 0: | atm id........| id|...| typ...|   
+Byte 1: | summa.|...|...|...|...|...|...|   
+Byte 2: |...|...|...|...|...|...|...|...|   
+Byte 3: | personlig kod.|...|...|...|...|   
+Byte 4: |...|...|...|...|...|...|...|...|   
+Byte 5: | engångskod|...|...|...|...|...|
+Byte 6: | kortnummer|...|...|...|...|...|   
+Byte 7: |...|...|...|...|...|...|...|...|   
+Byte 8: |...|...|...|...|...|...|...|...|   
+Byte 9: |...|...|...|...|...|...|...|...|   
+        +---+---+---+---+---+---+---+---+
+
+Översikt:
+Byte:  0                           1-2     3-4             5            6-9     
+      +-----------------+-------+---------------+------------+------------+
+      | atm id, id, typ | summa | personlig kod | engångskod | kortnummer |
+      +-----------------+-------+---------------+------------+------------+
+
+Fördjupning av byte 0:
+Bit:  7-4                3-2             1-0
+     +--------+---------------+----------------+ 
+     | atm id | meddelande id | meddelande typ |
+     +--------+---------------+----------------+
+
+Summa och personlig kod lagras som två-bytes heltal. Engångskod lagras som ett
+en-byte heltal. Kortnumret lagras som ett 4-byte heltal.
+
+atm id består av 4 bitar och skiftas 4 bitar vänster innan lagring.
+Id består av 2 bitar och skiftas 2 bitar vänster innan lagring. Typ består av 
+2 bitar 1 och skiftas inte innan lagring. För att lagra byte 0 xor-as 
+protokollversionen med id och typ.
+    Alltså: byte 0 = xor(protokollversion << 4, id << 2, typ)
+
+atm id är bankomatens idnummer. Om storleksbegränsningen vore mindre idiotisk
+skulle man kunna ha fler än 15 bankomater.
+
+Alltså gäller detta (decimalt):
+0 <= atm id <= 15,
+0 <= id <= 3
+0 <= typ <= 3
+0 <= summa < 2^16
+0 <= personlig kod < 2^16
+0 <= engångskod < 2^8
+0 <= kortnummer < 2^32
+
+Samtliga heltal som består av fler än 1 byte skivas i nätverksbytordning.
+
+Meddelandetyper (koderna visas binärt):
++------------------------------+-----+
+| Typ av meddelande:           | Kod |
++------------------------------+-----+
+| ATM till server:             |  00 |
+| servet till ATM:             |  01 |
+| uppgradera, server till ATM: |  10 |
+| uppgradera, ATM till server: |  10 |                 
++------------------------------+-----+                  
+                                                        
+Idnummer för meddelandena (koderna visas binärt):
++--------------------+-----+
+| Typ av meddelande: | Kod |
++--------------------+-----+
+| no                 |  00 |
+| balance            |  01 |
+| withdrawal         |  10 |
+| deposit            |  11 |
++--------------------+-----+
+
+Exemplel:
+
+NO:
+atm id: 0
+id: 00
+Typ: server till ATM, 01
+Resterande bytes är 0.
+
+Meddelande:
++---------+---+---+---+---+
+| 0,00,01 | 0 | 0 | 0 | 0 |
++---------+---+---+---+---+
+Med byte 0 kodad som 0000 0001.
+
+BALANCE:
+atm id: 0 
+Id: 01 
+Typ: ATM till server, 00
+Summa: frågas efter, fylls ut med 0 
+Personlig kod: 7894 
+Engångskod behövs inte, sätts till 0 
+Kortnr: 1472 58369 
+
+Detta ger ett meddelande (decimalt):
++---------+---+------+---+------------+
+| 0,01,00 | 0 | 7894 | 0 | 1472 58369 |
++---------+---+------+---+------------+
+Med byte 0 kodad som 0000 0100.
+
+WITHDRAWAL:
+atm id: 0
+Id: 10 
+Typ: ATM till server, 00
+Summa: 500     
+Personlig kod: 7894 
+Engångskod: 57
+Kortnr: 1472 58369 
+
+Meddelande:
++---------+-----+------+----+------------+
+| 0,10,00 | 500 | 7894 | 57 | 1472 58369 | 
++---------+-----+------+----+------------+ 
+Med byte 0 kodad som 0000 1000.
+
+DEPOSIT:
+atm id: 0
+Id: 10 
+Typ: ATM till server, 00
+Summa: 500     
+Personlig kod: 7894 
+Engångskod behövs inte, sätts till 0 
+Kortnr: 1472 58369 
+
+Meddelande: 
++---------+-----+------+---+------------+
+| 0,11,00 | 500 | 7894 | 0 | 1472 68369 |
++---------+-----+------+---+------------+
+Med byte 0 kodad som 0000 1100.

@@ -1,0 +1,7 @@
+*.swp
+*.o
+*.DEP
+server
+client
+bar
+foo.c
