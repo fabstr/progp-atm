@@ -1,6 +1,6 @@
 #include "mlog.h"
 
-void write_log(char *path, char *msg)
+void write_log(char *path, char *msg, int line, char *file)
 {
 	FILE *f = fopen(path, "a+b");
 	
@@ -10,6 +10,6 @@ void write_log(char *path, char *msg)
 	timeString[24] = '\0';
 
 	/* print the message and close the file */
-	fprintf(f, "%s: %s\n", timeString, msg);
+	fprintf(f, "%s (%s:%d) : %s\n", timeString, file, line, msg);
 	fclose(f);
 }
