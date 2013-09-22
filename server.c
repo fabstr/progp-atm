@@ -33,6 +33,7 @@ void handle_normal(int socket, Message *m)
 	no.message_type = MESSAGE_TYPE_SERVER_TO_ATM;
 
 	uint16_t withdrawn = 0;
+	uint16_t deposited = 0;
 
 	switch (m->message_id) {
 	case MESSAGE_ID_NO:
@@ -72,11 +73,13 @@ void handle_normal(int socket, Message *m)
 			fprintf(stderr, "Could not get balance.\n");
 			*m = no;
 		} else {
+			deposited = m->sum;
 			m->sum += balance;
 			update(m);
 			getBalance(m, &balance);
 			mlog("server.log", "balance is now %d for card # %d", 
 					balance, m->card_number);
+			m->sum = deposited;
 		}
 		break;
 	}
