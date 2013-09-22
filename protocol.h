@@ -2,35 +2,40 @@
 #define PROTOCOL_H
 
 #include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <netdb.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <sys/wait.h>
+
 #include "mlog.h"
 
+/* port for normal client/server communication */
 #define PORT "4567"
+
+/* port for manage/client upgrade communication */
+#define UPGRPORT "4568"
+
+#define BACKLOG 10
+
 #define BUFFSIZE 10
 
-#define ATM_ID_MASK 0xF0
-#define MESSAGE_ID_MASK 0x0C
-#define MESSAGE_TYPE_MASK 0x03
+typedef enum {
+	/* "normal" messages */
+	no, balance, withdraw, deposit,
 
-#define ATM_ID_SHIFT 4
-#define MESSAGE_ID_SHIFT 2
-#define MESSAGE_TYPE_SHIFT 0
-
-#define MESSAGE_TYPE_ATM_TO_SERVER 0
-#define MESSAGE_TYPE_SERVER_TO_ATM 1
-#define MESSAGE_TYPE_UPGRADE_SERVER_TO_ATM 2
-#define MESSAGE_TYPE_UPGRADE_ATM_TO_SERVER 3
-
-#define MESSAGE_ID_NO 0
-#define MESSAGE_ID_BALANCE 1
-#define MESSAGE_ID_WITHDRAWAL 2
-#define MESSAGE_ID_DEPOSIT 3
+	/* update messages */
+	atm_key, language_add, welcome_update,
+} Message_ID;
 
 typedef struct {
-	uint8_t atm_id;
-	uint8_t message_id;
-	uint8_t message_type;
+	Message_ID message_id;
 	uint16_t sum;
 	uint16_t pin;
 	uint8_t onetimecode;
@@ -38,13 +43,18 @@ typedef struct {
 } Message;
 
 typedef struct {
-	uint8_t byte0;
+	uint8_t message_id;
 	uint16_t sum;
 	uint16_t pin;
 	uint8_t onetimecode;
 	uint32_t card_number;
 } NetworkMessage;
 
+typedef struct {
+	uint8_t string_length; /**> length of the following string */
+	char *string; /**> the string */
+} NetworkString;
+ 
 typedef struct {
 	uint32_t card_number;
 	uint16_t pin;
@@ -57,5 +67,10 @@ size_t sendMessage(int connection, Message *msg);
 void printMessage(Message *m);
 int getCredentials(Credentials *target);
 int getCredentialsWithOTP(Credentials *target);
+int connectToServer(char *hostname, char *port);
+int sendNetworkString(int socket, char *string);
+int start_server(char *port, void(*handle)(int));
+void sigchld_handler(int s);
+int getNetworkString(int socket, NetworkString *nstr);
 
 #endif /* PROTOCOL_H */
