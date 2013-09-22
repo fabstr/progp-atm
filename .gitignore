@@ -11,4 +11,3 @@ db.sqlite
 sqlite
 sqlite3.c
 sqlite3.h
-server.log
