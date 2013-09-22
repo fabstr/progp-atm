@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-
 #ifdef LOGGING
 #define mlog(path, ...) {\
 	char *logline = NULL; \
