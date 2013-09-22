@@ -1,4 +1,4 @@
 progp-atm
 =========
 
-ATM server/client for Computer Science course.
+ATM server/client for a Computer Science course.
