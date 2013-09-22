@@ -1,20 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <stdbool.h>
-
 #include "server.h"
-#include "mlog.h"
-#include "protocol.h"
-#include "serverdb.h"
 
 #define BACKLOG 10
 
@@ -48,6 +32,8 @@ void handle_normal(int socket, Message *m)
 	memset(&no, 0, sizeof(Message));
 	no.message_type = MESSAGE_TYPE_SERVER_TO_ATM;
 
+	uint16_t withdrawn = 0;
+
 	switch (m->message_id) {
 	case MESSAGE_ID_NO:
 		/* do nothing */
@@ -74,8 +60,10 @@ void handle_normal(int socket, Message *m)
 			/* we can't overdraft */
 			m->message_id = MESSAGE_ID_NO;
 		} else {
+			withdrawn = m->sum;
 			m->sum = balance - m->sum;
 			update(m);
+			m->sum = withdrawn;
 		}
 		break;
 	case MESSAGE_ID_DEPOSIT:
@@ -213,7 +201,8 @@ int main(int argc, char **argv)
 		inet_ntop(other_address.ss_family, 
 				get_ipv4_or_ipv6_addr((struct sockaddr *) 
 				&other_address), other_ip, sizeof(other_ip));
-		mlog("server.log", "got connection (%d) from %s", new_connection, other_ip);
+		mlog("server.log", "got connection (%d) from %s", new_connection, 
+			other_ip);
 
 		if (!fork()) {
 			/* child process */
@@ -226,5 +215,6 @@ int main(int argc, char **argv)
 		close(new_connection);
 	}
 
+	close(sock);
 	return EXIT_SUCCESS;
 }
