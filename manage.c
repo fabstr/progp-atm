@@ -104,7 +104,7 @@ int changeWelcome()
 	char *lang = readline("Language code: ");
 	char *host = readline("Host: ");
 
-	int socket = connectToServer(host, PORT);
+	int socket = connectToServer(host, UPGRPORT);
 	int toReturn = 0;
 
 	mlog("manage.log", "sending welcome update");
@@ -118,16 +118,16 @@ int changeWelcome()
 		.sum = 2,
 	};
 
-	if (sendMessage(socket, &m) != 0) {
-		fprintf(stderr, "Could not send language_add message: %s\n", 
+	if (sendMessage(socket, &m) == -1) {
+		mlog("manage.log", "Could not send language_add message: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, lang) != 0) {
-		fprintf(stderr, "Could not send network string: %s\n", 
+	} else if (sendNetworkString(socket, lang) == -1) {
+		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, msg) != 0) {
-		fprintf(stderr, "Could not send network string: %s\n", 
+	} else if (sendNetworkString(socket, msg) == -1) {
+		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
 	} else {

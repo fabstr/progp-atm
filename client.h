@@ -3,7 +3,6 @@
 
 #include <readline/readline.h>
 #include <readline/history.h>
-
 #include <pthread.h>
 
 #include "mlog.h"

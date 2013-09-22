@@ -29,19 +29,24 @@ int main(int argc, char **argv)
 void *server_thread(void *arg)
 {
 	mlog("client.log", "starting upgrade server at %s", UPGRPORT);
+	setup_db();
 	start_server(UPGRPORT, upgrade_handle, &upgrade_socket);
 	return NULL;
 }
 
 void upgrade_handle(int socket)
 {
+	mlog("client.log", "got connection (%d)", socket);
+
 	Message m;
 	getMessage(socket, &m);
 	switch (m.message_id) {
 	case welcome_update:
+		mlog("client.log", "got upgrade welcome");
 		update_welcome(socket, &m);
 		break;
 	case language_add:
+		mlog("client.log", "got add language");
 		add_language(socket, &m);
 		break;
 	default:
@@ -53,17 +58,25 @@ void upgrade_handle(int socket)
 void update_welcome(int socket, Message *m)
 {
 	int nNetworkStrings = m->sum;
+	int nStringsGotten = 0;
 	int i;
 	NetworkString strings[nNetworkStrings];
+
+	mlog("client.log", "nNetworkStrings = %d", nNetworkStrings);
 
 	for (i=0; i<nNetworkStrings; i++) {
 		if (getNetworkString(socket, &(strings[i])) != 0) {
 			mlog("client.log", "Could not get network string: %s\n",
 					strerror(errno));
+		} else {
+			nStringsGotten++;
 		}
 	}
 
-	if (i != 2) {
+	mlog("client.log", "got %d strings", nStringsGotten);
+
+	/* i starts at zero */
+	if (nStringsGotten != 2) {
 		mlog("client.log", "upgrade protocol error: should receive "
 				"2 network strings when updating welcome, got "
 				"%d.", i);
@@ -73,7 +86,10 @@ void update_welcome(int socket, Message *m)
 		char *newmsg = strings[1].string;
 		if (update_welcome_db(lang_code, newmsg) != 0) {
 			mlog("client.log", "could not update database.");
+		} else {
+			mlog("client.log", "updated welcome");
 		}
+
 	}
 
 	for (i=0; i<nNetworkStrings; i++) {
@@ -180,7 +196,8 @@ void show_balance(int socket, Credentials *c)
 	getMessage(socket, &answer);
 
 	if (answer.message_id != balance) {
-		printf("Could not get the balance. Please make sure you are using the corrent pin.\n");
+		printf("Could not get the balance. Please make sure you are "
+				"using the corrent pin.\n");
 	} else {
 		printf("Balance: %d\n", answer.sum);
 	}
@@ -188,7 +205,7 @@ void show_balance(int socket, Credentials *c)
 
 void deposit_money(int socket, Credentials *c)
 {
-	uint16_t amount = askForInteger("Please enter the amount to deposit (you would be most kind to also insert the money into the machine): ");
+	uint16_t amount = askForInteger("Please enter the amount to deposit: ");
 
 	Message m = {
 		.message_id = deposit,
@@ -203,7 +220,8 @@ void deposit_money(int socket, Credentials *c)
 	getMessage(socket, &answer);
 
 	if (answer.message_id != deposit) {
-		printf("Could not deposit money. Please make sure you are using the corrent pin.\n");
+		printf("Could not deposit money. Please make sure you are "
+				"using the corrent pin.\n");
 	} else {
 		printf("%d was deposited into your account.\n", answer.sum);
 	}

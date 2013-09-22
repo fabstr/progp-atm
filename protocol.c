@@ -111,18 +111,28 @@ int sendNetworkString(int socket, char *string)
 
 int getNetworkString(int socket, NetworkString *nstr)
 {
+	mlog("server.log", "getNetworkString");
+
 	/* first receive the length */
 	uint8_t length;
 	if (recv(socket, &length, 1, 0) == -1) {
 		return 1;
 	}
 
-	/* the receive the string */
-	nstr->string = (char *) malloc(length*sizeof(char));
-	if (recv(socket, &length, length, 0) == -1) {
+	mlog("server.log", "got length = %d", length);
+
+	/* then receive the string */
+	nstr->string = (char *) malloc(length + 1);
+	size_t received;
+	if ((received = recv(socket, nstr->string, length, 0)) == -1) {
 		free(nstr->string);
 		return 1;
 	}
+
+	nstr->string_length = length;
+	nstr->string[length] = '\0';
+
+	mlog("server.log", "read %d bytes and got string '%s'", received, nstr->string);
 
 	return 0;
 }
@@ -199,6 +209,9 @@ int start_server(char *port, void(*handle)(int), int *sock)
 		sin_size = sizeof(other_address);
 		new_connection = accept(*sock,
 				(struct sockaddr *) &other_address, &sin_size);
+
+		mlog("server.log", "accepted %d", new_connection);
+
 		if (new_connection == -1) {
 			mlog("server.log", "accept: %s", strerror(errno));
 			continue;
@@ -212,6 +225,7 @@ int start_server(char *port, void(*handle)(int), int *sock)
 
 		if (!fork()) {
 			/* child process */
+			mlog("server.log", "fork: calling handle");
 			close(*sock);
 			handle(new_connection);
 			close(new_connection);

@@ -18,10 +18,10 @@ const char *insert_string = "INSERT INTO languages (langcode, langname,"
 	"error_unknown_command, error_balance, error_deposit, error_withdraw,"
 	"msg_welcome, msg_balance, msg_deposit, msg_withdraw, rqst_enter_amount,"
 	"rqst_enter_otp, rqst_card_number, rqst_pin)"
-	"VALUES (?1 ?2 ?3 ?4 ?5 ?6 ?7 ?8 ?9 ?10 ?11 ?12 ?13 ?14 ?15 ?16 ?17 "
-	"?18 ?19)";
+	"VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, "
+	"?15, ?16, ?17, ?18, ?19)";
 
-const char *update_welcome_string = "UPDATE lanugages "
+const char *update_welcome_string = "UPDATE languages "
 	"SET msg_welcome = ?1 "
 	"WHERE langcode LIKE ?2";
 
@@ -48,14 +48,14 @@ int setup_db()
 	
 	const char *unused;
 
-	res = sqlite3_prepare_v2(db, create_table_string, strlen(create_table_string)+1, 
+	/*res = sqlite3_prepare_v2(db, create_table_string, strlen(create_table_string)+1, 
 			&create_table_stmt, &unused);
 	if (res != SQLITE_OK) {
 		mlog("server.log", "Could not prepare ('%s'): %s",
 				create_table_string, sqlite3_errmsg(db));
 		close_db();
 		return 1;
-	}
+	}*/
 
 	res = sqlite3_prepare_v2(db, get_string, strlen(get_string)+1, 
 		&get_string_stmt, &unused);
