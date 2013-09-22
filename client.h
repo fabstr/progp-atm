@@ -4,6 +4,8 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#include <pthread.h>
+
 #include "mlog.h"
 #include "protocol.h"
 #include "clientdb.h"
@@ -18,6 +20,6 @@ void upgrade_handle(int socket);
 void start_loop(char *hostname, char *port);
 void update_welcome(int socket, Message *m);
 void add_language(int socket, Message *m);
-
+void *server_thread(void *arg);
 
 #endif /* CLIENT_H */

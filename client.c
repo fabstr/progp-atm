@@ -1,5 +1,7 @@
 #include "client.h"
 
+int upgrade_socket; 
+
 int main(int argc, char **argv)
 {
 	if (argc != 2) {
@@ -8,18 +10,28 @@ int main(int argc, char **argv)
 	}
 
 	/* start server for upgrading */
-	if (!fork()) {
-		mlog("client.log", "starting upgrade server at %s", UPGRPORT);
-		start_server(UPGRPORT, upgrade_handle);
-	}
+	pthread_t serverthread;
+	pthread_create(&serverthread, NULL, server_thread, NULL);
 
 	char *hostname = argv[1];
 	char *port = PORT;
 	start_loop(hostname, port);
 
+	mlog("client.log", "cancelling serverthread");
+	pthread_cancel(serverthread);
+	pthread_join(serverthread, NULL);
+	mlog("client.log", "closing upgrade_socket");
+	close(upgrade_socket);
+
 	return EXIT_SUCCESS;
 }
 
+void *server_thread(void *arg)
+{
+	mlog("client.log", "starting upgrade server at %s", UPGRPORT);
+	start_server(UPGRPORT, upgrade_handle, &upgrade_socket);
+	return NULL;
+}
 
 void upgrade_handle(int socket)
 {
@@ -96,20 +108,27 @@ void add_language(int socket, Message *m)
 
 void start_loop(char *hostname, char *port)
 {
-	printf("Välkommen till räksmörgåsen! Write 'help' for help.\n");
-
 	Credentials c;
-	getCredentials(&c);
+	bool haveCredentials = false;
 
 	while (1) {
+		if (haveCredentials == false) {
+			printf("Välkommen till räksmörgåsen! Write 'help' "
+					"for help.\n");
+			getCredentials(&c);
+			haveCredentials = true;
+		}
+
 		char *line = readline(">> ");
 		if (!line) {
 			break;
 		}
 		add_history(line);
 
-		if (strcmp(line, "quit") == 0) {
+		if (strcmp(line, "poweroff") == 0) {
 			break;
+		} else if (strcmp(line, "quit") == 0) {
+			haveCredentials = false;
 		} else if (strcmp(line, "show balance") == 0) {
 			int socket = connectToServer(hostname, port);
 			show_balance(socket, &c);
@@ -227,7 +246,8 @@ int getCredentials(Credentials *target)
 
 	res = 0;
 	while (res == 0) {
-		char *pinstring = readline("Please enter your card number: ");
+		char *pinstring = readline("Please enter your personal "
+				"identification number: ");
 		res = sscanf(pinstring, "%hd", &(target->pin));
 		free(pinstring);
 	}
