@@ -132,7 +132,8 @@ int getNetworkString(int socket, NetworkString *nstr)
 	nstr->string_length = length;
 	nstr->string[length] = '\0';
 
-	mlog("server.log", "read %d bytes and got string '%s'", received, nstr->string);
+	mlog("server.log", "read %d bytes and got string '%s'", (int) received,
+			nstr->string);
 
 	return 0;
 }
