@@ -108,7 +108,7 @@ int getBalance(Message *m, uint16_t *balance)
 		}
 
 		if (results == 0) {
-			m->message_id = MESSAGE_ID_NO;
+			m->message_id = no;
 		}
 
 		mlog("server.log", "got balance %d for %d", *balance, m->card_number);
