@@ -114,7 +114,6 @@ int close_db()
 
 char *getString(Strings string_name, char *lang_code)
 {
-	char *stringName = string_from_enum(string_name);
 	char *string = NULL;
 	int results = 0;
 	
