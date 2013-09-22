@@ -1,38 +1,12 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-
 #include "client.h"
-#include "mlog.h"
-#include "protocol.h"
 
-int main(int argc, char **argv)
+int connectToServer(char *hostname, char *port)
 {
 	int sock;
-	/*int bytes_read;*/
-	/*char buff[BUFFSIZE];*/
 	struct addrinfo hints;
 	struct addrinfo *servinfo, *p;
 	int error;
 	char other_ip[INET6_ADDRSTRLEN];
-
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s hostname port\n", argv[0]);
-		return EXIT_FAILURE;
-	}
-
-	char *hostname = argv[1];
-	char *port = argv[2];
-
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -71,13 +45,24 @@ int main(int argc, char **argv)
 
 	freeaddrinfo(servinfo);
 
-	start_loop(sock);
-	close(sock);
+	return sock;
+}
+
+int main(int argc, char **argv)
+{
+	if (argc != 3) {
+		fprintf(stderr, "Usage: %s hostname port\n", argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	char *hostname = argv[1];
+	char *port = argv[2];
+	start_loop(hostname, port);
 
 	return EXIT_SUCCESS;
 }
 
-void start_loop(int socket)
+void start_loop(char *hostname, char *port)
 {
 	printf("Welcome! Write 'help' for help.\n");
 
@@ -96,11 +81,17 @@ void start_loop(int socket)
 		} else if (strcmp(line, "exit") == 0) {
 			break;
 		} else if (strcmp(line, "show balance") == 0) {
+			int socket = connectToServer(hostname, port);
 			show_balance(socket, &c);
+			close(socket);
 		} else if (strcmp(line, "deposit") == 0) {
+			int socket = connectToServer(hostname, port);
 			deposit(socket, &c);
+			close(socket);
 		} else if (strcmp(line, "withdraw") == 0) {
+			int socket = connectToServer(hostname, port);
 			withdraw(socket, &c);
+			close(socket);
 		} else if (strcmp(line, "help") == 0) {
 			printHelp();
 		} else if (strcmp(line, "'help'") == 0) {
@@ -180,7 +171,7 @@ void withdraw(int socket, Credentials *c)
 	uint8_t otp = askForInteger("Please enter your one time key: ");
 
 	Message m = {
-		.message_id = MESSAGE_ID_DEPOSIT,
+		.message_id = MESSAGE_ID_WITHDRAWAL,
 		.message_type = MESSAGE_TYPE_ATM_TO_SERVER,
 		.atm_id = 0,
 		.sum = amount,
