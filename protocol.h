@@ -1,7 +1,10 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+#include <stdio.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
+#include "mlog.h"
 
 #define PORT "4567"
 #define BUFFSIZE 10

@@ -1,7 +1,14 @@
 #ifndef SERVERDB_H
 #define SERVERDB_H
 
-#include <sqlite3.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include "protocol.h"
+#include "mlog.h"
+#include "sqlite3.h"
 
 #define DBPATH "db.sqlite"
 

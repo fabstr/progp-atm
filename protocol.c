@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include "protocol.h"
-#include "mlog.h"
 
 void *get_ipv4_or_ipv6_addr(struct sockaddr *socketaddress)
 {
