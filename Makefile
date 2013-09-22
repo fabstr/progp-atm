@@ -1,9 +1,10 @@
 .PHONY: all wc clean run-server-valgrind run-client-valgrind test
 
 # the source files
-SRCCOMMON = protocol.c mlog.c 
-SRCSERVER = server.c serverdb.c sqlite3.c $(SRCCOMMON)
-SRCCLIENT = client.c $(SRCCOMMON)
+SRCCOMMON = protocol.c mlog.c sqlite3.c 
+SRCSERVER = server.c serverdb.c $(SRCCOMMON)
+SRCCLIENT = client.c clientdb.c $(SRCCOMMON)
+SRCMANAGE = manage.c $(SRCCOMMON)
 
 # enable or disable logging (comment out to disable)
 LOGGING = -DLOGGING
@@ -11,15 +12,16 @@ LOGGING = -DLOGGING
 # the objects files
 SERVEROBJECTS = $(SRCSERVER:.c=.o)
 CLIENTOBJECTS = $(SRCCLIENT:.c=.o)
+MANAGEOBJECTS = $(SRCMANAGE:.c=.o)
 
 # all objects
-OBJECTS = $(SERVEROBJECTS) $(CLIENTOBJECTS)
+OBJECTS = $(SERVEROBJECTS) $(CLIENTOBJECTS) $(MANAGEOBJECTS)
 
 # all binaries
-BINS = server client
+BINS = server client manage
 
-# the compiler flags
-CFLAGS = -g -O0 -Wall -Wno-deprecated $(LOGGING)
+# the compiler flags add -Wno-deprecated to use openssl on os x
+CFLAGS = -g -O0 -Wall -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
 LDLIBS = -lpthread -ldl -lreadline
@@ -30,11 +32,13 @@ CC = gcc # use this on linux
 #CC = clang # use this on os x
 
 # the output files
-all: server client
+all: server client manage
 server: $(SERVEROBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(SERVEROBJECTS) $(LDLIBS)
 client: $(CLIENTOBJECTS)
-	$(CC) $(CFLAGS) -o $@ $ $(CLIENTOBJECTS) $(LDLIBS) 
+	$(CC) $(CFLAGS) -o $@ $(CLIENTOBJECTS) $(LDLIBS) 
+manage: $(MANAGEOBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(MANAGEOBJECTS) $(LDLIBS)
 
 # other files to clean
 OTHERCLEANING = valgrind.log
@@ -54,7 +58,7 @@ run-client-valgrind: client client.dSYM
 	valgrind $(VLGDFLAGS) client
 
 wc:
-	@wc -l *.c *.h | grep -i -v -e total | awk '{print $$1}' | \
+	@wc -l *.c *.h | grep -i -v -e total -e sqlite3.h -e sqlite3.c | awk '{print $$1}' | \
 		awk '{sum += $$1} END {print sum " total"}'
 
 clean:
