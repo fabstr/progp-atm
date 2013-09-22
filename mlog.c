@@ -10,6 +10,6 @@ void write_log(char *path, char *msg, int line, char *file)
 	timeString[24] = '\0';
 
 	/* print the message and close the file */
-	fprintf(f, "%s (%s:%d) : %s\n", timeString, file, line, msg);
+	fprintf(f, "%s (%s:%d): %s \n", timeString, file, line, msg);
 	fclose(f);
 }
