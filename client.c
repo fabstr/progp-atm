@@ -1,70 +1,102 @@
 #include "client.h"
 
-int connectToServer(char *hostname, char *port)
-{
-	int sock;
-	struct addrinfo hints;
-	struct addrinfo *servinfo, *p;
-	int error;
-	char other_ip[INET6_ADDRSTRLEN];
-
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if ((error = getaddrinfo(hostname, port, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
-		return EXIT_FAILURE;
-	}
-
-	for (p=servinfo; p != NULL; p = p->ai_next) {
-		if ((sock = socket(p->ai_family, p->ai_socktype,
-						p->ai_protocol)) == -1) {
-			perror("client: socket");
-			continue;
-		}
-
-		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sock);
-			perror("client: socket");
-			continue;
-		}
-
-		break;
-	}
-
-	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect");
-		return EXIT_FAILURE;
-	}
-
-	inet_ntop(p->ai_family,
-			get_ipv4_or_ipv6_addr((struct sockaddr *) p->ai_addr),
-			other_ip, sizeof(other_ip));
-	printf("client: connecting to %s\n", other_ip);
-
-	freeaddrinfo(servinfo);
-
-	return sock;
-}
-
 int main(int argc, char **argv)
 {
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s hostname port\n", argv[0]);
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s hostname\n", argv[0]);
 		return EXIT_FAILURE;
+	}
+
+	/* start server for upgrading */
+	if (!fork()) {
+		mlog("client.log", "starting upgrade server at %s", UPGRPORT);
+		start_server(UPGRPORT, upgrade_handle);
 	}
 
 	char *hostname = argv[1];
-	char *port = argv[2];
+	char *port = PORT;
 	start_loop(hostname, port);
 
 	return EXIT_SUCCESS;
 }
 
+
+void upgrade_handle(int socket)
+{
+	Message m;
+	getMessage(socket, &m);
+	switch (m.message_id) {
+	case welcome_update:
+		update_welcome(socket, &m);
+		break;
+	case language_add:
+		add_language(socket, &m);
+		break;
+	default:
+		mlog("client.log", "invalid message id.");
+		break;
+	}
+}
+
+void update_welcome(int socket, Message *m)
+{
+	int nNetworkStrings = m->sum;
+	int i;
+	NetworkString strings[nNetworkStrings];
+
+	for (i=0; i<nNetworkStrings; i++) {
+		if (getNetworkString(socket, &(strings[i])) != 0) {
+			mlog("client.log", "Could not get network string: %s\n",
+					strerror(errno));
+		}
+	}
+
+	if (i != 2) {
+		mlog("client.log", "upgrade protocol error: should receive "
+				"2 network strings when updating welcome, got "
+				"%d.", i);
+		return;
+	} else {
+		char *lang_code = strings[0].string;
+		char *newmsg = strings[1].string;
+		if (update_welcome_db(lang_code, newmsg) != 0) {
+			mlog("client.log", "could not update database.");
+		}
+	}
+
+	for (i=0; i<nNetworkStrings; i++) {
+		free(strings[i].string);
+	}
+}
+
+void add_language(int socket, Message *m)
+{
+	int nNetworkStrings = m->sum;
+	int i;
+	NetworkString strings[nNetworkStrings];
+
+	for (i=0; i<nNetworkStrings; i++) {
+		if (getNetworkString(socket, &(strings[i])) != 0) {
+			mlog("client.log", "Could not get network string: %s\n",
+					strerror(errno));
+		}
+	}
+
+	char *lang_strings[nNetworkStrings];
+	for (i=0; i<nNetworkStrings; i++) {
+		lang_strings[i] = strings[i].string;
+	}
+
+	create_language(lang_strings, nNetworkStrings);
+
+	for (i=0; i<nNetworkStrings; i++) {
+		free(strings[i].string);
+	}
+}
+
 void start_loop(char *hostname, char *port)
 {
-	printf("Welcome! Write 'help' for help.\n");
+	printf("Välkommen till räksmörgåsen! Write 'help' for help.\n");
 
 	Credentials c;
 	getCredentials(&c);
@@ -78,19 +110,17 @@ void start_loop(char *hostname, char *port)
 
 		if (strcmp(line, "quit") == 0) {
 			break;
-		} else if (strcmp(line, "exit") == 0) {
-			break;
 		} else if (strcmp(line, "show balance") == 0) {
 			int socket = connectToServer(hostname, port);
 			show_balance(socket, &c);
 			close(socket);
 		} else if (strcmp(line, "deposit") == 0) {
 			int socket = connectToServer(hostname, port);
-			deposit(socket, &c);
+			deposit_money(socket, &c);
 			close(socket);
 		} else if (strcmp(line, "withdraw") == 0) {
 			int socket = connectToServer(hostname, port);
-			withdraw(socket, &c);
+			withdraw_money(socket, &c);
 			close(socket);
 		} else if (strcmp(line, "help") == 0) {
 			printHelp();
@@ -109,7 +139,6 @@ void start_loop(char *hostname, char *port)
 void printHelp()
 {
 	printf("COMMAND      DESCRIPTION\n");
-	printf("exit         Quit the program. Same as quit.\n");
 	printf("quit         Quit the program. Same as exit.\n");
 	printf("show balance Show the balance on your account.\n");
 	printf("deposit      Deposit money to your account.\n");
@@ -120,9 +149,7 @@ void printHelp()
 void show_balance(int socket, Credentials *c)
 {
 	Message m = {
-		.message_id = MESSAGE_ID_BALANCE,
-		.message_type = MESSAGE_TYPE_ATM_TO_SERVER,
-		.atm_id = 0,
+		.message_id = balance,
 		.sum = 0,
 		.pin = c->pin,
 		.card_number = c->card_number,
@@ -133,21 +160,19 @@ void show_balance(int socket, Credentials *c)
 	sendMessage(socket, &m);
 	getMessage(socket, &answer);
 
-	if (answer.message_id == MESSAGE_ID_NO) {
+	if (answer.message_id != balance) {
 		printf("Could not get the balance. Please make sure you are using the corrent pin.\n");
 	} else {
 		printf("Balance: %d\n", answer.sum);
 	}
 }
 
-void deposit(int socket, Credentials *c)
+void deposit_money(int socket, Credentials *c)
 {
 	uint16_t amount = askForInteger("Please enter the amount to deposit (you would be most kind to also insert the money into the machine): ");
 
 	Message m = {
-		.message_id = MESSAGE_ID_DEPOSIT,
-		.message_type = MESSAGE_TYPE_ATM_TO_SERVER,
-		.atm_id = 0,
+		.message_id = deposit,
 		.sum = amount,
 		.pin = c->pin,
 		.card_number = c->card_number,
@@ -158,22 +183,20 @@ void deposit(int socket, Credentials *c)
 	sendMessage(socket, &m);
 	getMessage(socket, &answer);
 
-	if (answer.message_id == MESSAGE_ID_NO) {
+	if (answer.message_id != deposit) {
 		printf("Could not deposit money. Please make sure you are using the corrent pin.\n");
 	} else {
 		printf("%d was deposited into your account.\n", answer.sum);
 	}
 }
 
-void withdraw(int socket, Credentials *c)
+void withdraw_money(int socket, Credentials *c)
 {
 	uint16_t amount = askForInteger("Please enter the amount to withdraw: ");
 	uint8_t otp = askForInteger("Please enter your one time key: ");
 
 	Message m = {
-		.message_id = MESSAGE_ID_WITHDRAWAL,
-		.message_type = MESSAGE_TYPE_ATM_TO_SERVER,
-		.atm_id = 0,
+		.message_id = withdraw,
 		.sum = amount,
 		.pin = c->pin,
 		.card_number = c->card_number,
@@ -184,7 +207,7 @@ void withdraw(int socket, Credentials *c)
 	sendMessage(socket, &m);
 	getMessage(socket, &answer);
 
-	if (answer.message_id == MESSAGE_ID_NO) {
+	if (answer.message_id != withdraw) {
 		printf("Could not withdraw money.\n");
 		printf("Please make sure you are using the corrent pin and ");
 		printf("the corrent one time key.\n");
