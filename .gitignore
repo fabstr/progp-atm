@@ -1,12 +1,12 @@
 *.swp
 *.o
 *.DEP
+*.log
+*.dSYM
 server
 client
 bar
 foo.c
-*.dSYM
-db.sqlite
 db.sqlite
 sqlite
 sqlite3.c
