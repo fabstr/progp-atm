@@ -11,7 +11,7 @@ const char *create_table_string = "CREATE TABLE languages("
 	"rqst_enter_amount TEXT, rqst_enter_otp TEXT, rqst_card_number TEXT,"
 	"rqst_pin TEXT)";
 
-const char *get_string = "SELECT ?1 FROM languages WHERE langcode LIKE ?2";
+const char *get_string = "SELECT * FROM languages WHERE langcode LIKE ?1";
 
 const char *insert_string = "INSERT INTO languages (langcode, langname,"
 	"cmd_quit, cmd_balance, cmd_deposit, cmd_withdraw, cmd_help,"
@@ -25,12 +25,16 @@ const char *update_welcome_string = "UPDATE languages "
 	"SET msg_welcome = ?1 "
 	"WHERE langcode LIKE ?2";
 
+const char *get_lang_codes_string = "SELECT langcode, langname FROM languages";
+
 sqlite3 *db = NULL;
+pthread_mutex_t dbmutex = PTHREAD_MUTEX_INITIALIZER;
 
 sqlite3_stmt *create_table_stmt = NULL;
 sqlite3_stmt *get_string_stmt = NULL;
 sqlite3_stmt *insert_stmt = NULL;
 sqlite3_stmt *update_welcome_stmt = NULL;
+sqlite3_stmt *get_lang_codes_stmt = NULL;
 
 /**
  * Initialise the database and the statements.
@@ -39,51 +43,62 @@ sqlite3_stmt *update_welcome_stmt = NULL;
  */
 int setup_db()
 {
+	mlog("client.log", "setting up db");
+
 	int res = sqlite3_open(DBPATH, &db);
 	if (res != 0) {
-		mlog("server.log", "Could not open database: %s",
+		mlog("client.log", "Could not open database: %s",
 				sqlite3_errmsg(db));
 		return 1;
 	}
 	
-	const char *unused;
+	mlog("client.log", "opened database");
 
-	/*res = sqlite3_prepare_v2(db, create_table_string, strlen(create_table_string)+1, 
-			&create_table_stmt, &unused);
-	if (res != SQLITE_OK) {
-		mlog("server.log", "Could not prepare ('%s'): %s",
-				create_table_string, sqlite3_errmsg(db));
-		close_db();
-		return 1;
-	}*/
+	const char *unused;
 
 	res = sqlite3_prepare_v2(db, get_string, strlen(get_string)+1, 
 		&get_string_stmt, &unused);
 	if (res != SQLITE_OK) {
-		mlog("server.log", "Could not prepare ('%s'): %s", 
+		mlog("client.log", "Could not prepare ('%s'): %s", 
 				get_string, sqlite3_errmsg(db));
 		close_db();
 		return 1;
 	}
+	mlog("client.log", "prepared get_string");
 
 	res = sqlite3_prepare_v2(db, insert_string, strlen(insert_string)+1, 
 			&insert_stmt, &unused);
 	if (res != SQLITE_OK) {
-		mlog("server.log", "Could not prepare ('%s'): %s",
+		mlog("client.log", "Could not prepare ('%s'): %s",
 				insert_string, sqlite3_errmsg(db));
 		close_db();
 		return 1;
 	}
+	mlog("client.log", "prepared insert_string");
 	
 	res = sqlite3_prepare_v2(db, update_welcome_string, 
 			strlen(update_welcome_string)+1, &update_welcome_stmt, 
 			&unused);
 	if (res != SQLITE_OK) {
-		mlog("server.log", "Could not prepare ('%s'): %s",
+		mlog("client.log", "Could not prepare ('%s'): %s",
 				update_welcome_string, sqlite3_errmsg(db));
 		close_db();
 		return 1;
 	}
+	mlog("client.log", "prepared update_welcome");
+
+	res = sqlite3_prepare_v2(db, get_lang_codes_string, 
+			strlen(get_lang_codes_string)+1, &get_lang_codes_stmt, 
+			&unused);
+	if (res != SQLITE_OK) {
+		mlog("client.log", "Could not prepare ('%s'): %s",
+				get_lang_codes_string, sqlite3_errmsg(db));
+		close_db();
+		return 1;
+	}
+	mlog("client.log", "prepared get_lang_codes");
+
+	mlog("client.log", "db setup successfull");
 	return 0;
 }
 
@@ -93,6 +108,7 @@ int close_db()
 	sqlite3_finalize(get_string_stmt);
 	sqlite3_finalize(insert_stmt);
 	sqlite3_finalize(update_welcome_stmt);
+	sqlite3_finalize(get_lang_codes_stmt);
 	return sqlite3_close(db);
 }
 
@@ -102,11 +118,12 @@ char *getString(Strings string_name, char *lang_code)
 	char *string = NULL;
 	int results = 0;
 	
-	if (sqlite3_bind_text(get_string_stmt, 1, stringName, strlen(stringName),
-				SQLITE_STATIC) != SQLITE_OK) {
-		mlog("client.log", "Could not bind column name: %s",
-				sqlite3_errmsg(db));
-	} else if (sqlite3_bind_text(get_string_stmt, 2, lang_code, 3,
+	//if (sqlite3_bind_text(get_string_stmt, 1, stringName, strlen(stringName),
+				//SQLITE_STATIC) != SQLITE_OK) {
+		//mlog("client.log", "Could not bind column name: %s",
+				//sqlite3_errmsg(db));
+	//} else if (sqlite3_bind_text(get_string_stmt, 2, lang_code, 3,
+	if (sqlite3_bind_text(get_string_stmt, 1, lang_code, 3,
 				SQLITE_STATIC) != SQLITE_OK) {
 		mlog("client.log", "Could not bind language code: %s",
 				sqlite3_errmsg(db));
@@ -120,7 +137,12 @@ char *getString(Strings string_name, char *lang_code)
 			break;
 		} else if (res == SQLITE_ROW) {
 			results++;
-			string = (char *) sqlite3_column_text(get_string_stmt, 0);
+			char * tmp = (char *) 
+				sqlite3_column_text(get_string_stmt, string_name);
+			size_t size = sqlite3_column_bytes(get_string_stmt, 
+					string_name) + 1;
+			string = (char *) malloc(size);
+			strcpy(string, tmp);
 		} else {
 			mlog("client.log", "Could not step: %s",
 					sqlite3_errmsg(db));
@@ -128,6 +150,7 @@ char *getString(Strings string_name, char *lang_code)
 		}
 	}
 
+	mlog("client.log", "got string: %s", string);
 	sqlite3_reset(get_string_stmt);
 	return string;
 }
@@ -256,4 +279,55 @@ char *string_from_enum(Strings string_name)
 		return NULL;
 		break;
 	}
+}
+
+void printAvaliableLanguages()
+{
+	mlog("client.log", "printing available languages");
+	int results = 0;
+	
+	/*if (sqlite3_bind_text(get_string_stmt, 1, stringName, strlen(stringName),
+				SQLITE_STATIC) != SQLITE_OK) {
+		mlog("client.log", "Could not bind column name: %s",
+				sqlite3_errmsg(db));
+	} else if (sqlite3_bind_text(get_string_stmt, 2, lang_code, 3,
+				SQLITE_STATIC) != SQLITE_OK) {
+		mlog("client.log", "Could not bind language code: %s",
+				sqlite3_errmsg(db));
+	}*/
+	char *code, *name;
+
+	printf("Code: Name:\n");
+	pthread_mutex_lock(&dbmutex);
+	while (1) {
+		int res = sqlite3_step(get_lang_codes_stmt);
+		if (res == SQLITE_BUSY) {
+			sleep(10);
+			continue;
+		} else if (res == SQLITE_DONE) {
+			break;
+		} else if (res == SQLITE_ROW) {
+			results++;
+			code = (char *) sqlite3_column_text(get_lang_codes_stmt, 0);
+			name = (char *) sqlite3_column_text(get_lang_codes_stmt, 1);
+			printf("%s    %s\n", code, name);
+		} else {
+			mlog("client.log", "Could not step: %s",
+					sqlite3_errmsg(db));
+			return;
+			pthread_mutex_unlock(&dbmutex);
+		}
+	}
+
+	if (results == 0) {
+		printf("There was no languages.");
+	}
+
+	sqlite3_reset(get_string_stmt);
+	pthread_mutex_unlock(&dbmutex);
+}
+
+bool correctLangCode(char *code)
+{
+	return (strlen(code) == 2) ? true : false;
 }

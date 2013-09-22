@@ -2,6 +2,9 @@
 
 int upgrade_socket; 
 
+/* the language code for the current language in the ui */
+char *language_code;
+
 int main(int argc, char **argv)
 {
 	if (argc != 2) {
@@ -9,12 +12,17 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	language_code = "en";
+
 	/* start server for upgrading */
 	pthread_t serverthread;
 	pthread_create(&serverthread, NULL, server_thread, NULL);
 
 	char *hostname = argv[1];
 	char *port = PORT;
+
+	setup_db();
+
 	start_loop(hostname, port);
 
 	mlog("client.log", "cancelling serverthread");
@@ -22,6 +30,7 @@ int main(int argc, char **argv)
 	pthread_join(serverthread, NULL);
 	mlog("client.log", "closing upgrade_socket");
 	close(upgrade_socket);
+	close_db();
 
 	return EXIT_SUCCESS;
 }
@@ -29,7 +38,6 @@ int main(int argc, char **argv)
 void *server_thread(void *arg)
 {
 	mlog("client.log", "starting upgrade server at %s", UPGRPORT);
-	setup_db();
 	start_server(UPGRPORT, upgrade_handle, &upgrade_socket);
 	return NULL;
 }
@@ -37,17 +45,22 @@ void *server_thread(void *arg)
 void upgrade_handle(int socket)
 {
 	mlog("client.log", "got connection (%d)", socket);
+	extern pthread_mutex_t dbmutex;
 
 	Message m;
 	getMessage(socket, &m);
 	switch (m.message_id) {
 	case welcome_update:
 		mlog("client.log", "got upgrade welcome");
+		pthread_mutex_lock(&dbmutex);
 		update_welcome(socket, &m);
+		pthread_mutex_unlock(&dbmutex);
 		break;
 	case language_add:
 		mlog("client.log", "got add language");
+		pthread_mutex_lock(&dbmutex);
 		add_language(socket, &m);
+		pthread_mutex_unlock(&dbmutex);
 		break;
 	default:
 		mlog("client.log", "invalid message id.");
@@ -129,8 +142,9 @@ void start_loop(char *hostname, char *port)
 
 	while (1) {
 		if (haveCredentials == false) {
-			printf("Välkommen till räksmörgåsen! Write 'help' "
-					"for help.\n");
+			printf("%s\n", getString(msg_welcome, language_code));
+			//printf("Write help for help. Write change language to "
+					//"change language.\n");
 			getCredentials(&c);
 			haveCredentials = true;
 		}
@@ -163,9 +177,10 @@ void start_loop(char *hostname, char *port)
 			printHelp();
 		} else if (strcmp(line, "") == 0) {
 			continue;
+		} else if (strcmp(line, "change language") == 0) {
+			changeLanguage();
 		} else {
-			printf("Unknown command '%s'. Write 'help' for help.\n",
-					line);
+			printf("%s\n", getString(error_unknown_command, language_code));
 		}
 		free(line);
 	}
@@ -173,6 +188,7 @@ void start_loop(char *hostname, char *port)
 
 void printHelp()
 {
+	printf("%s\n", getString(msg_help, language_code));
 	printf("COMMAND      DESCRIPTION\n");
 	printf("quit         Quit the program. Same as exit.\n");
 	printf("show balance Show the balance on your account.\n");
@@ -284,4 +300,26 @@ uint16_t askForInteger(char *prompt)
 	}
 
 	return result;
+}
+
+void changeLanguage()
+{
+	printAvaliableLanguages();
+
+	char *code = readline("Enter the code to use: ");
+
+	while (correctLangCode(code) == false) {
+		printf("Invalid language code.");
+		free(code);
+		code = readline("Enter the code to use: ");
+	}
+
+	setLanguage(code);
+}
+
+
+
+void setLanguage(char *code)
+{
+	language_code = code;
 }

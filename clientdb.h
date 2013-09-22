@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "protocol.h"
 #include "mlog.h"
@@ -13,7 +14,7 @@
 
 typedef enum {
 	/* commands the user writes */
-	cmd_quit, cmd_balance, cmd_deposit, cmd_withdraw, cmd_help, 
+	cmd_quit = 3, cmd_balance, cmd_deposit, cmd_withdraw, cmd_help, 
 
 	/* error messages */
 	error_unknown_command, error_balance, error_deposit, error_withdraw, 
@@ -35,5 +36,9 @@ int create_language(char **strings, int count);
 int update_welcome_db(char *lang_code, char *newmsg);
 
 char *string_from_enum(Strings string_name);
+
+void printAvaliableLanguages();
+
+bool correctLangCode(char *code);
 
 #endif /* CLIENTDB_H */

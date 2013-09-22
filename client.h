@@ -20,5 +20,7 @@ void start_loop(char *hostname, char *port);
 void update_welcome(int socket, Message *m);
 void add_language(int socket, Message *m);
 void *server_thread(void *arg);
+void changeLanguage();
+void setLanguage(char *code);
 
 #endif /* CLIENT_H */
