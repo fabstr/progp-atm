@@ -122,5 +122,6 @@ int main(int argc, char **argv)
 	}
 
 	char *port = PORT;
-	return start_server(port, handle_connection);
+	int socket;
+	return start_server(port, handle_connection, &socket);
 }

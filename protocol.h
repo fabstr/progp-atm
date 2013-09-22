@@ -69,7 +69,7 @@ int getCredentials(Credentials *target);
 int getCredentialsWithOTP(Credentials *target);
 int connectToServer(char *hostname, char *port);
 int sendNetworkString(int socket, char *string);
-int start_server(char *port, void(*handle)(int));
+int start_server(char *port, void(*handle)(int), int *sock);
 void sigchld_handler(int s);
 int getNetworkString(int socket, NetworkString *nstr);
 

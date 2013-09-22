@@ -127,9 +127,9 @@ int getNetworkString(int socket, NetworkString *nstr)
 	return 0;
 }
 
-int start_server(char *port, void(*handle)(int))
+int start_server(char *port, void(*handle)(int), int *sock)
 {
-	int sock, new_connection;
+	int new_connection;
 
 	struct addrinfo hints;
 	struct addrinfo *servinfo, *p;
@@ -152,20 +152,20 @@ int start_server(char *port, void(*handle)(int))
 	}
 
 	for (p = servinfo; p != NULL; p = p->ai_next) {
-		if ((sock = socket(p->ai_family, p->ai_socktype, 
+		if ((*sock = socket(p->ai_family, p->ai_socktype, 
 						p->ai_protocol)) == -1) {
 			mlog("server.log", "socket: %s", strerror(errno));
 			continue;
 		}
 
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, 
+		if (setsockopt(*sock, SOL_SOCKET, SO_REUSEADDR, &yes, 
 					sizeof(int)) == -1) {
 			perror("setsockopt");
 			return EXIT_FAILURE;
 		}
 
-		if (bind(sock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sock);
+		if (bind(*sock, p->ai_addr, p->ai_addrlen) == -1) {
+			close(*sock);
 			mlog("server.log", "bind: %s", strerror(errno));
 			continue;
 		}
@@ -180,7 +180,7 @@ int start_server(char *port, void(*handle)(int))
 
 	freeaddrinfo(servinfo);
 
-	if (listen(sock, BACKLOG) == -1) {
+	if (listen(*sock, BACKLOG) == -1) {
 		mlog("server.log", "listen: %s", strerror(errno));
 		return EXIT_FAILURE;
 	}
@@ -197,7 +197,7 @@ int start_server(char *port, void(*handle)(int))
 
 	while (true) {
 		sin_size = sizeof(other_address);
-		new_connection = accept(sock,
+		new_connection = accept(*sock,
 				(struct sockaddr *) &other_address, &sin_size);
 		if (new_connection == -1) {
 			mlog("server.log", "accept: %s", strerror(errno));
@@ -212,7 +212,7 @@ int start_server(char *port, void(*handle)(int))
 
 		if (!fork()) {
 			/* child process */
-			close(sock);
+			close(*sock);
 			handle(new_connection);
 			close(new_connection);
 			return EXIT_SUCCESS;
@@ -221,7 +221,7 @@ int start_server(char *port, void(*handle)(int))
 		close(new_connection);
 	}
 
-	close(sock);
+	close(*sock);
 	return EXIT_SUCCESS;
 }
 
