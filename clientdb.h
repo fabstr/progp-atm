@@ -24,6 +24,9 @@ typedef enum {
 
 	/* requests to the user */
 	rqst_enter_amount, rqst_enter_otp, rqst_card_number, rqst_pin,
+
+	/* values added after initial sql queries */
+	cmd_change_lang,
 } Strings;
 
 int setup_db();
