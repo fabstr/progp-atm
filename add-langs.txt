@@ -1,0 +1,43 @@
+add language
+127.0.0.1
+sv
+Svenska
+avsluta
+saldo
+insattning
+uttag
+Hjälp
+Okänt kommando
+Kunde inte visa saldo.
+Kunde inte ta ut.
+Kunde inte ta ut.
+Välkommen!
+Saldo:
+Insättning:
+Uttag:
+Ange summa:
+Ange engångskod:
+Ange kortnummer:
+Ange pinkod:
+
+add language
+127.0.0.1
+en
+English
+quit
+balance
+deposit
+withdraw
+help
+Unknown command.
+Could not show balance.
+Could not deposit money.
+Could not withdraw money.
+Welcom!
+Balance:
+Deposited:
+Withdrawn:
+Enter amount:
+Enter one time key:
+Enter card number:
+Enter pin code:
