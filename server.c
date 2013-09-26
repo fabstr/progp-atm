@@ -2,24 +2,10 @@
 
 #define BACKLOG 10
 
-/**
- * Handle an upgrade message.
- * @param socket The connection to the atm
- * @param m The message that was sent
- */
 void handle_upgrade(int socket, Message *m)
 {
-	switch (m->message_id) {
-	default:
-		break;
-	}
 }
 
-/**
- * Handle a normal atm to server message.
- * @param socket The connection to the atm
- * @param m The message that was sent
- */
 void handle_normal(int socket, Message *m)
 {
 	uint16_t account_balance = 0;
