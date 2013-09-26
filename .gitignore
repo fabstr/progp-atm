@@ -18,6 +18,8 @@ sqlite3.c
 sqlite3.h
 .DS_Store 
 .DS_Store
+apa
+apa.c
 
 stringmanager.c
 stringmanager.h
