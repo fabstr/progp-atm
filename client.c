@@ -137,30 +137,32 @@ void start_loop(char *hostname, char *port)
 {
 	Credentials c;
 	bool haveCredentials = false;
+	bool looping = true;
 
 	char *str_poweroff = "poweroff";
 	char *str_quit = getString(cmd_quit, language_code);
 	char *str_balance = getString(cmd_balance, language_code);
 	char *str_deposit = getString(cmd_deposit, language_code);
 	char *str_withdraw = getString(cmd_withdraw, language_code);
-	char *str_help = getString(cmd_help, language_code);
+	char *str_unknown_command = getString(error_unknown_command, language_code);
+	char *str_help = getString(msg_help, language_code);
+	char *str_help_cmd = getString(cmd_help, language_code);
 	char *str_change_language = "change language";
 
-	while (1) {
+	while (looping == true) {
 		if (haveCredentials == false) {
-			printf("%s\n", getString(msg_welcome, language_code));
+			char *str = getString(msg_welcome, language_code);
+			printf("%s\n", str);
 			getCredentials(&c);
 			haveCredentials = true;
+			free(str);
 		}
 
 		char *line = readline(">> ");
-		if (!line) {
-			break;
-		}
 		add_history(line);
 
 		if (strcmp(line, str_poweroff) == 0) {
-			break;
+			looping = false;
 		} else if (strcmp(line, str_quit) == 0) {
 			haveCredentials = false;
 		} else if (strcmp(line, str_balance) == 0) {
@@ -175,44 +177,59 @@ void start_loop(char *hostname, char *port)
 			int socket = connectToServer(hostname, port);
 			withdraw_money(socket, &c);
 			close(socket);
-		} else if (strcmp(line, str_help) == 0) {
-			printf("%s\n", getString(cmd_help, language_code));
+		} else if (strcmp(line, str_help_cmd) == 0) {
+			printf("%s\n", str_help);
 		} else if (strcmp(line, "") == 0) {
-			continue;
+			/* do nothing */
 		} else if (strcmp(line, str_change_language) == 0) {
 			changeLanguage();
 		} else {
-			printf("%s\n", getString(error_unknown_command, language_code));
+			printf("%s\n", str_unknown_command);
 		}
 		free(line);
 	}
+
+	free(str_quit);
+	free(str_balance);
+	free(str_deposit);
+	free(str_withdraw);
+	free(str_unknown_command);
+	free(str_help);
+	free(str_help_cmd);
 }
 
 void show_balance(int socket, Credentials *c)
 {
-	Message m = {
-		.message_id = balance,
-		.sum = 0,
-		.pin = c->pin,
-		.card_number = c->card_number,
-		.onetimecode = 0
-	};
+	Message *m = (Message *) malloc(sizeof(Message));
+	m->message_id = balance;
+	m->sum = 0;
+	m->pin = c->pin;
+	m->card_number = c->card_number;
+	m->onetimecode = 0;
 
 	Message answer;
-	sendMessage(socket, &m);
+	sendMessage(socket, m);
 	getMessage(socket, &answer);
 
 	if (answer.message_id != balance) {
-		printf("%s\n", getString(error_balance, language_code));
+		char *str = getString(error_balance, language_code);
+		printf("%s\n", str);
+		free(str);
 	} else {
-		printf("%s", getString(msg_balance, language_code));
+		char *str = getString(msg_balance, language_code);
+		printf("%s", str);
 		printf("%d\n", answer.sum);
+		free(str);
 	}
+
+	free(m);
 }
 
 void deposit_money(int socket, Credentials *c)
 {
-	uint16_t amount = askForInteger(getString(rqst_enter_amount, language_code));
+	char *str1 = getString(rqst_enter_amount, language_code);
+	uint16_t amount = askForInteger(str1);
+	free(str1);
 
 	Message m = {
 		.message_id = deposit,
@@ -227,16 +244,25 @@ void deposit_money(int socket, Credentials *c)
 	getMessage(socket, &answer);
 
 	if (answer.message_id != deposit) {
-		printf("%s\n", getString(error_deposit, language_code));
+		char *str2 = getString(error_deposit, language_code);
+		printf("%s\n", str2);
+		free(str2);
 	} else {
-		printf("%s %d\n", getString(msg_deposit, language_code), m.sum);
+		char *str3 = getString(msg_deposit, language_code);
+		printf("%s %d\n", str3, m.sum);
+		free(str3);
 	}
 }
 
 void withdraw_money(int socket, Credentials *c)
 {
-	uint16_t amount = askForInteger(getString(rqst_enter_amount, language_code));
-	uint8_t otp = askForInteger(getString(rqst_enter_otp, language_code));
+	char *str1 = getString(rqst_enter_amount, language_code);
+	uint16_t amount = askForInteger(str1);
+	free(str1);
+
+	char *str2 = getString(rqst_enter_otp, language_code);
+	uint8_t otp = askForInteger(str2);
+	free(str2);
 
 	Message m = {
 		.message_id = withdraw,
@@ -251,10 +277,14 @@ void withdraw_money(int socket, Credentials *c)
 	getMessage(socket, &answer);
 
 	if (answer.message_id != withdraw) {
-		printf("%s\n", getString(error_withdraw, language_code));
+		char *str3 = getString(error_withdraw, language_code);
+		printf("%s\n", str3);
+		free(str3);
 	} else {
-		printf("%s", getString(msg_withdraw, language_code));
+		char *str4 = getString(msg_withdraw, language_code);
+		printf("%s\n", str4);
 		printf("%d\n", answer.sum);
+		free(str4);
 	}
 }
 
@@ -262,16 +292,20 @@ int getCredentials(Credentials *target)
 {
 	int res = 0;
 	while (res == 0) {
-		char *cardstring = readline(getString(rqst_card_number, language_code));
+		char *str = getString(rqst_card_number, language_code);
+		char *cardstring = readline(str);
 		res = sscanf(cardstring, "%d", &(target->card_number));
 		free(cardstring);
+		free(str);
 	}
 
 	res = 0;
 	while (res == 0) {
-		char *pinstring = readline(getString(rqst_pin, language_code));
+		char *str = getString(rqst_pin, language_code);
+		char *pinstring = readline(str);
 		res = sscanf(pinstring, "%hd", &(target->pin));
 		free(pinstring);
+		free(str);
 	}
 
 	return 0;
@@ -304,8 +338,6 @@ void changeLanguage()
 
 	setLanguage(code);
 }
-
-
 
 void setLanguage(char *code)
 {

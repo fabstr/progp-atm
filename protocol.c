@@ -13,20 +13,20 @@ int connectToServer(char *hostname, char *port)
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((error = getaddrinfo(hostname, port, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+		mlog("client.log", "getaddrinfo: %s\n", gai_strerror(error));
 		return EXIT_FAILURE;
 	}
 
 	for (p=servinfo; p != NULL; p = p->ai_next) {
 		if ((sock = socket(p->ai_family, p->ai_socktype,
 						p->ai_protocol)) == -1) {
-			perror("client: socket");
+			mlog("client.log", "client: socket: %s", strerror(errno));
 			continue;
 		}
 
 		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sock);
-			perror("client: socket");
+			mlog("client.log", "client: socket: %s", strerror(errno));
 			continue;
 		}
 
@@ -34,14 +34,14 @@ int connectToServer(char *hostname, char *port)
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect");
+		mlog("client.log", "client: failed to connect");
 		return EXIT_FAILURE;
 	}
 
 	inet_ntop(p->ai_family,
 			get_ipv4_or_ipv6_addr((struct sockaddr *) p->ai_addr),
 			other_ip, sizeof(other_ip));
-	printf("client: connecting to %s\n", other_ip);
+	mlog("client.log", "connecting to %s\n", other_ip);
 
 	freeaddrinfo(servinfo);
 
@@ -75,16 +75,20 @@ int getMessage(int connection, Message *target)
 
 size_t sendMessage(int connection, Message *msg)
 {
-	uint8_t message_id = (uint8_t) msg->message_id;
-	NetworkMessage toSend = {
-		.message_id = message_id,
-		.sum = htons(msg->sum),
-		.pin =  htons(msg->pin),
-		.onetimecode =  msg->onetimecode,
-		.card_number = htons(msg->card_number),
-	};
+	NetworkMessage toSend;
+	memset(&toSend, 0, sizeof(NetworkMessage));
 
-	return send(connection, &toSend, sizeof(NetworkMessage), 0);
+	uint8_t message_id = (uint8_t) msg->message_id;
+
+	toSend.message_id = message_id;
+	toSend.sum = htons(msg->sum);
+	toSend.pin =  htons(msg->pin);
+	toSend.onetimecode =  msg->onetimecode;
+	toSend.card_number = htons(msg->card_number);
+
+	int toReturn = send(connection, &toSend, sizeof(NetworkMessage), 0);
+
+	return toReturn;
 }
 
 void printMessage(Message *m)
@@ -184,7 +188,7 @@ int start_server(char *port, void(*handle)(int), int *sock)
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "server: failed to bind\n");
+		mlog("server.log", "server: failed to bind\n");
 		return EXIT_FAILURE;
 	}
 

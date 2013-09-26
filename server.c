@@ -23,8 +23,8 @@ void handle_upgrade(int socket, Message *m)
 void handle_normal(int socket, Message *m)
 {
 	uint16_t account_balance = 0;
-	Message nomsg;
-	memset(&nomsg, 0, sizeof(Message));
+	Message nomsg = {};
+	/*memset(&nomsg, 0, sizeof(Message));*/
 	nomsg.message_id = no;
 
 	uint16_t withdrawn = 0;
@@ -88,29 +88,32 @@ void handle_normal(int socket, Message *m)
 void handle_connection(int socket)
 {
 	mlog("server.log", "handling connection %d", socket);
-	Message m;
-	getMessage(socket, &m);
+	Message *m = (Message *) malloc(sizeof(Message));
+	memset(m, 0, sizeof(Message));
+	getMessage(socket, m);
 
-	switch (m.message_id) {
+	switch (m->message_id) {
 	case balance:
 	case withdraw:
 	case deposit:
 		mlog("server.log", "normal message %d", socket);
-		handle_normal(socket, &m);
+		handle_normal(socket, m);
 		break;
 	case atm_key:
 	case language_add:
 	case welcome_update:
 		mlog("server.log", "upgrade message %d", socket);
-		handle_upgrade(socket, &m);
+		handle_upgrade(socket, m);
 		break;
 	default:
-		memset(&m, 0, sizeof(Message));
-		m.message_id = no;
-		sendMessage(socket, &m);
-		return;
+		m->message_id = no;
+		sendMessage(socket, m);
+		break;
 	}
 
+	free(m);
+	mlog("server.log", "closing db");
+	close_db();
 	return;
 }
 
