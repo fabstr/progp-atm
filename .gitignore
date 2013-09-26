@@ -23,3 +23,6 @@ apa.c
 
 stringmanager.c
 stringmanager.h
+
+docs
+doxygen
