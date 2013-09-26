@@ -1,3 +1,4 @@
+
 add language
 127.0.0.1
 sv
@@ -9,12 +10,13 @@ uttag
 Hjälp
 Okänt kommando
 Kunde inte visa saldo.
-Kunde inte ta ut.
-Kunde inte ta ut.
+Kunde inte sätta in pengar.
+Kunde inte ta ut pengar.
 Välkommen!
 Saldo:
 Insättning:
 Uttag:
+Kommandon: hjalp, insattning, uttag, saldo, avsluta
 Ange summa:
 Ange engångskod:
 Ange kortnummer:
@@ -37,7 +39,9 @@ Welcom!
 Balance:
 Deposited:
 Withdrawn:
+Commands: help, deposit, balance, withdraw, quit
 Enter amount:
 Enter one time key:
 Enter card number:
 Enter pin code:
+
