@@ -1,128 +1,122 @@
-        +---+---+---+---+---+---+---+---+
-    Bit | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
-        +---+---+---+---+---+---+---+---+
-Byte 0: | atm id........| id|...| typ...|   
-Byte 1: | summa.|...|...|...|...|...|...|   
-Byte 2: |...|...|...|...|...|...|...|...|   
-Byte 3: | personlig kod.|...|...|...|...|   
-Byte 4: |...|...|...|...|...|...|...|...|   
-Byte 5: | engångskod|...|...|...|...|...|
-Byte 6: | kortnummer|...|...|...|...|...|   
-Byte 7: |...|...|...|...|...|...|...|...|   
-Byte 8: |...|...|...|...|...|...|...|...|   
-Byte 9: |...|...|...|...|...|...|...|...|   
-        +---+---+---+---+---+---+---+---+
+The traffic message si defined as following:
 
-Översikt:
-Byte:  0                           1-2     3-4             5            6-9     
-      +-----------------+-------+---------------+------------+------------+
-      | atm id, id, typ | summa | personlig kod | engångskod | kortnummer |
-      +-----------------+-------+---------------+------------+------------+
+Byte number: 0           1              2,3   4,5        6,7
+            +------------+--------------+-----+----------+-------------+
+            | message id | one time key | sum | pin code | card number |
+            +------------+--------------+-----+----------+-------------+
 
-Fördjupning av byte 0:
-Bit:  7-4                3-2             1-0
-     +--------+---------------+----------------+ 
-     | atm id | meddelande id | meddelande typ |
-     +--------+---------------+----------------+
+In more detail, NetworkMessage is the message that is sent over the network:
+    typedef struct {
+	    uint8_t message_id;
+	    uint8_t onetimecode;
+	    uint16_t sum;
+	    uint16_t pin;
+	    uint16_t card_number;
+    } NetworkMessage;
 
-Summa och personlig kod lagras som två-bytes heltal. Engångskod lagras som ett
-en-byte heltal. Kortnumret lagras som ett 4-byte heltal.
+Every integer longer than one byte is sent in network byte order.
 
-atm id består av 4 bitar och skiftas 4 bitar vänster innan lagring.
-Id består av 2 bitar och skiftas 2 bitar vänster innan lagring. Typ består av 
-2 bitar 1 och skiftas inte innan lagring. För att lagra byte 0 xor-as 
-protokollversionen med id och typ.
-    Alltså: byte 0 = xor(protokollversion << 4, id << 2, typ)
+Traffic messages:
+There are four traffic messages and the corresponding message_id value:
 
-atm id är bankomatens idnummer. Om storleksbegränsningen vore mindre idiotisk
-skulle man kunna ha fler än 15 bankomater.
++----------+------------+
+| Name     | message_id |
++----------+------------+
+| no       | 0          |
+| balance  | 1          |
+| withdraw | 2          |
+| deposit  | 3          |
++----------+------------+ 
 
-Alltså gäller detta (decimalt):
-0 <= atm id <= 15,
-0 <= id <= 3
-0 <= typ <= 3
-0 <= summa < 2^16
-0 <= personlig kod < 2^16
-0 <= engångskod < 2^8
-0 <= kortnummer < 2^32
+No:
+message_id is set to 0, the other fields are ignored by the client and the
+server. A no message is sent when something is not allowed, for example whilst
+the pin code is incorrect or when the user is trying to withdraw too much money
+from the account.
 
-Samtliga heltal som består av fler än 1 byte skivas i nätverksbytordning.
+Balance:
+Balance is sent when the user wants to see the balance on the account.  
+message_id is 1 and pin and card_number is set to the correct values. If the 
+pin/card_number values are correct, the server replies with a balance message
+with sum indicating the balance on the account. If the pin/card_number values
+are not correct, the server replies with a no message.
 
-Meddelandetyper (koderna visas binärt):
-+------------------------------+-----+
-| Typ av meddelande:           | Kod |
-+------------------------------+-----+
-| ATM till server:             |  00 |
-| servet till ATM:             |  01 |
-| uppgradera, server till ATM: |  10 |
-| uppgradera, ATM till server: |  10 |                 
-+------------------------------+-----+                  
-                                                        
-Idnummer för meddelandena (koderna visas binärt):
-+--------------------+-----+
-| Id för meddelande: | Kod |
-+--------------------+-----+
-| no                 |  00 |
-| balance            |  01 |
-| withdrawal         |  10 |
-| deposit            |  11 |
-+--------------------+-----+
 
-Exempel:
+Withdraw:
+Is sent when the user wants to withdraw money. The pin/card_number values are
+set by the client and message_id is 3. The amount the user wants to withdraw is
+set in sum. If the account is not being overdrawn, the server replies with the
+same message that was sent by the client. Else a no message is sent.
 
-NO:
-atm id: 0
-id: 00
-Typ: server till ATM, 01
-Resterande bytes är 0.
+Deposit:
+Sent when the user wants to deposit money. The client sets pin/card_number/sum.
+The server updates the account and responds with the same message. On error a 
+no message is sent.
 
-Meddelande:
-+---------+---+---+---+---+
-| 0,00,01 | 0 | 0 | 0 | 0 |
-+---------+---+---+---+---+
-Med byte 0 kodad som 0000 0001.
+Update messages:
+There are three update messages (all are based on NetworkMessage):
 
-BALANCE:
-atm id: 0 
-Id: 01 
-Typ: ATM till server, 00
-Summa: frågas efter, fylls ut med 0 
-Personlig kod: 7894 
-Engångskod behövs inte, sätts till 0 
-Kortnr: 1472 58369 
++----------------+------------+----------------+
+| Name           | message_id | direction      |
++----------------+------------+----------------+
+| atm_key        | 4          | client->server |
+| language_add   | 5          | manage->client |
+| welcome_update | 6          | manage->client |
++----------------+------------+----------------+
 
-Detta ger ett meddelande (decimalt):
-+---------+---+------+---+------------+
-| 0,01,00 | 0 | 7894 | 0 | 1472 58369 |
-+---------+---+------+---+------------+
-Med byte 0 kodad som 0000 0100.
+Additionally there is a NetworkString message: First a single byte is sent with
+the length of the following string, then in a second package the string data is
+sent.
 
-WITHDRAWAL:
-atm id: 0
-Id: 10 
-Typ: ATM till server, 00
-Summa: 500     
-Personlig kod: 7894 
-Engångskod: 57
-Kortnr: 1472 58369 
+Language_add:
+message_id is set to 4 and sum is set to the number of following translation
+strings. Then that number of network strings are sent in the order the strings
+appear in queryStrings:
+    #define STRING_COUNT 20
+    char *queryStrings[STRING_COUNT] = {
+	    "Language code: ",
+	    "Language name: ",
+	    "Balance command: ",
+	    "Deposit command: ",
+	    "Withdraw command: ",
+	    "Help command: ",
+	    "Unknown command: ",
+	    "Balance error: ",
+	    "Dedposit error: ",
+	    "Withdraw error: ",
+	    "Welcome message: ",
+	    "Balance message: ",
+	    "Desposit message: ",
+	    "Withdraw message: ",
+	    "Help message: ",
+	    "Enter amount requst: ",
+	    "Enter one time key request: ",
+	    "Enter card number request: ",
+	    "Enter pin request: ",
+    };
+The client is the to expect (currently) 20 network strings.
 
-Meddelande:
-+---------+-----+------+----+------------+
-| 0,10,00 | 500 | 7894 | 57 | 1472 58369 | 
-+---------+-----+------+----+------------+ 
-Med byte 0 kodad som 0000 1000.
+Welcome_update:
+message_id is set to 6 and sum the number of following network strings. The 
+first network string tells the client which language code to update the welcome
+message on, the second network string defines the new welcome message.
 
-DEPOSIT:
-atm id: 0
-Id: 10 
-Typ: ATM till server, 00
-Summa: 500     
-Personlig kod: 7894 
-Engångskod behövs inte, sätts till 0 
-Kortnr: 1472 58369 
+Scenario when asking for balance:
 
-Meddelande: 
-+---------+-----+------+---+------------+
-| 0,11,00 | 500 | 7894 | 0 | 1472 68369 |
-+---------+-----+------+---+------------+
-Med byte 0 kodad som 0000 1100.
+    Client                    Server                      Server
++------------------+       +-----------+            +------------------+
+| BALANCE          |      ++           ++  +-----+  | BALANCE          |
+| id=1             +->>>>-+ is pin and  +>>| YES |>>+ id=1             |
+| pin=1234         |      | card number |  +-----+  | pin=1234         |
+| card_number=1000 |      ++  valid?   ++           | card_number=1000 |
++------------------+       +----++-----+            | sum=500          |
+                                vv                  +--------+---------+
++------------------+            vv                           v
+| Could not get    |         +--++--+                        v
+| balance.         +---------+  NO  |                        v
+|                  |         +------+                        v
++------------------+                                         v
+                                                             v
++--------------+                                             v
+| Balance: 500 +<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
++--------------+ 
