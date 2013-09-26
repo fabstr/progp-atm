@@ -28,7 +28,7 @@
 
 typedef enum {
 	/* "normal" messages */
-	no, balance, withdraw, deposit,
+	no = 0, balance, withdraw, deposit,
 
 	/* update messages */
 	atm_key, language_add, welcome_update,
@@ -39,7 +39,7 @@ typedef struct {
 	uint16_t sum;
 	uint16_t pin;
 	uint8_t onetimecode;
-	uint32_t card_number;
+	uint16_t card_number;
 } Message;
 
 typedef struct {
@@ -47,7 +47,7 @@ typedef struct {
 	uint16_t sum;
 	uint16_t pin;
 	uint8_t onetimecode;
-	uint32_t card_number;
+	uint16_t card_number;
 } NetworkMessage;
 
 typedef struct {

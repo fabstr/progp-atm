@@ -69,8 +69,7 @@ int getMessage(int connection, Message *target)
 	target->sum = ntohs(nm.sum);
 	target->pin = ntohs(nm.pin);
 	target->onetimecode = nm.onetimecode;
-	target->card_number = ntohl(nm.card_number);
-
+	target->card_number = ntohs(nm.card_number);
 	return 0;
 }
 
@@ -82,7 +81,7 @@ size_t sendMessage(int connection, Message *msg)
 		.sum = htons(msg->sum),
 		.pin =  htons(msg->pin),
 		.onetimecode =  msg->onetimecode,
-		.card_number = htonl(msg->card_number),
+		.card_number = htons(msg->card_number),
 	};
 
 	return send(connection, &toSend, sizeof(NetworkMessage), 0);
