@@ -7,7 +7,7 @@ const char *create_table_string = "CREATE TABLE languages("
 	"cmd_quit TEXT, cmd_balance TEXT, cmd_deposit TEXT, cmd_withdraw TEXT,"
 	"cmd_help TEXT, error_unknown_command TEXT, error_balance TEXT,"
 	"error_deposit TEXT, error_withdraw TEXT, msg_welcome TEXT,"
-	"msg_balance TEXT, msg_deposit TEXT, msg_withdraw TEXT,"
+	"msg_balance TEXT, msg_deposit TEXT, msg_withdraw TEXT, msg_help TEXT,"
 	"rqst_enter_amount TEXT, rqst_enter_otp TEXT, rqst_card_number TEXT,"
 	"rqst_pin TEXT)";
 
@@ -16,10 +16,10 @@ const char *get_string = "SELECT * FROM languages WHERE langcode LIKE ?1";
 const char *insert_string = "INSERT INTO languages (langcode, langname,"
 	"cmd_quit, cmd_balance, cmd_deposit, cmd_withdraw, cmd_help,"
 	"error_unknown_command, error_balance, error_deposit, error_withdraw,"
-	"msg_welcome, msg_balance, msg_deposit, msg_withdraw, rqst_enter_amount,"
-	"rqst_enter_otp, rqst_card_number, rqst_pin)"
+	"msg_welcome, msg_balance, msg_deposit, msg_withdraw, msg_help,"
+	"rqst_enter_amount, rqst_enter_otp, rqst_card_number, rqst_pin)"
 	"VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, "
-	"?15, ?16, ?17, ?18, ?19)";
+	"?15, ?16, ?17, ?18, ?19, ?20)";
 
 const char *update_welcome_string = "UPDATE languages "
 	"SET msg_welcome = ?1 "
@@ -116,6 +116,7 @@ char *getString(Strings string_name, char *lang_code)
 {
 	char *string = NULL;
 	int results = 0;
+	mlog("client.log", "getting string %s", string_from_enum(string_name));
 	
 	//if (sqlite3_bind_text(get_string_stmt, 1, stringName, strlen(stringName),
 				//SQLITE_STATIC) != SQLITE_OK) {
@@ -156,14 +157,14 @@ char *getString(Strings string_name, char *lang_code)
 
 int create_language(char **strings, int count)
 {
-	if (count != 19) {
+	if (count != 20) {
 		mlog("client.log", "want 19 strings for a new language, got %d",
 				count);
 		return 1;
 	}
 
 	int i;
-	for (i=1; i<=19; i++) {
+	for (i=1; i<=20; i++) {
 		if (sqlite3_bind_text(insert_stmt, 
 					i, 
 					strings[i-1], 
@@ -179,7 +180,7 @@ int create_language(char **strings, int count)
 	while ((res = sqlite3_step(insert_stmt)) != SQLITE_DONE) {
 		switch (res) {
 		case SQLITE_BUSY:
-			sleep(10);
+			mlog("client.log", "sqlite busy");
 			continue;
 			break;
 		case SQLITE_ERROR:
@@ -273,6 +274,9 @@ char *string_from_enum(Strings string_name)
 		break;
 	case msg_withdraw:
 		return "msg_withdraw"; 
+		break;
+	case msg_help:
+		return "msg_help";
 		break;
 	default:
 		return NULL;

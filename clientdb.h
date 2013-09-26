@@ -19,8 +19,8 @@ typedef enum {
 	/* error messages */
 	error_unknown_command, error_balance, error_deposit, error_withdraw, 
 
-	/* success messages */
-	msg_welcome, msg_balance, msg_deposit, msg_withdraw,
+	/* success messages (and welcome and help) */
+	msg_welcome, msg_balance, msg_deposit, msg_withdraw, msg_help,
 
 	/* requests to the user */
 	rqst_enter_amount, rqst_enter_otp, rqst_card_number, rqst_pin,
