@@ -56,9 +56,18 @@ void handle_normal(int socket, Message *m)
 			/* we can't overdraft */
 			m->message_id = no;
 		} else {
+			uint8_t onetimekey = m->onetimecode;
+			getNextOnetimekey(m);
+			if (onetimekey != m->onetimecode) {
+				mlog("server.log", "wrong otk");
+				*m = nomsg;
+				break;
+			}
+
 			withdrawn = m->sum;
 			m->sum = account_balance - m->sum;
 			update(m);
+			updateOnetimekey(m);
 			m->sum = withdrawn;
 		}
 		break;
