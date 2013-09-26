@@ -41,21 +41,23 @@ manage: $(MANAGEOBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(MANAGEOBJECTS) $(LDLIBS)
 
 # other files to clean
-OTHERCLEANING = valgrind.log
+OTHERCLEANING = valgrind.log manage.log client.log server.log
 
 # dSYM's 
 DSYMS = $(BINS:=.dSYM) 
 
 # the dependency files
-DEPS = $(SRCSERVER:.c=.DEP) $(SRCCLIENT:.c=.DEP)
+DEPS = $(SRCSERVER:.c=.DEP) $(SRCCLIENT:.c=.DEP) $(SRCMANAGE:.c=.DEP)
 
 # the valgrind flags
 VLGDFLAGS = --leak-check=full --log-file=valgrind.log --track-origins=yes 
 
 run-server-valgrind: server server.dSYM
-	valgrind $(VLGDFLAGS) server
+	@rm valgrind.log
+	valgrind $(VLGDFLAGS) ./server
 run-client-valgrind: client client.dSYM
-	valgrind $(VLGDFLAGS) client
+	@rm valgrind.log
+	valgrind $(VLGDFLAGS) ./client
 
 wc:
 	@wc -l *.c *.h | grep -i -v -e total -e sqlite3.h -e sqlite3.c | awk '{print $$1}' | \
