@@ -44,9 +44,9 @@ typedef struct {
 
 typedef struct {
 	uint8_t message_id;
+	uint8_t onetimecode;
 	uint16_t sum;
 	uint16_t pin;
-	uint8_t onetimecode;
 	uint16_t card_number;
 } NetworkMessage;
 
