@@ -50,19 +50,19 @@ typedef enum {
  * @brief The message that is used internally in the server and the client.
  */
 typedef struct {
-	/**> the message id */
+	/** @brief the message id */
 	Message_ID message_id;
 
-	/**> the sum, when applicable */
+	/** @brief the sum, when applicable */
 	uint16_t sum;
 
-	/**> the pin code */
+	/** @brief the pin code */
 	uint16_t pin;
 
-	/**> the one time code, when applicable */
+	/** @brief the one time code, when applicable */
 	uint8_t onetimecode;
 
- 	/**> the card number */
+ 	/** @brief the card number */
 	uint16_t card_number;
 } Message;
 
@@ -70,19 +70,19 @@ typedef struct {
  * @brief The message that is actually sent over the network.
  */
 typedef struct {
-	/**> the message id (converted from enum) */
+	/** @brief the message id (converted from enum) */
 	uint8_t message_id;
 
-	/**> the sum, when applicable */
+	/** @brief the sum, when applicable */
 	uint8_t onetimecode;
 
-	/**> the pin code */
+	/** @brief the pin code */
 	uint16_t sum;
 
-	/**> the one time code, when applicable */
+	/** @brief the one time code, when applicable */
 	uint16_t pin;
 
- 	/**> the card number */
+ 	/** @brief the card number */
 	uint16_t card_number;
 } NetworkMessage;
 
@@ -91,8 +91,11 @@ typedef struct {
  * package to let the receiver allocate memory.
  */
 typedef struct {
-	uint8_t string_length; /**> length of the following string */
-	char *string; /**> the string */
+	/** @brief length of the following string */
+	uint8_t string_length;
+
+        /** @brief the string */
+	char *string; 
 } NetworkString;
  
 /**
@@ -100,13 +103,13 @@ typedef struct {
  * otp is not always applicable.
  */
 typedef struct {
-	/**> The user's card number */
+	/** @brief The user's card number */
 	uint32_t card_number;
 
-	/**> The user's pin code */
+	/** @brief The user's pin code */
 	uint16_t pin;
 
-	/**> When needed, the user's current one time key*/
+	/** @brief When needed, the user's current one time key*/
 	uint8_t otp;
 } Credentials;
 
