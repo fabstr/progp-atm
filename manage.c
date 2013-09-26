@@ -1,26 +1,26 @@
 #include "manage.h"
 
-#define STRING_COUNT 19
+#define STRING_COUNT 20
 char *queryStrings[STRING_COUNT] = {
 	"Language code: ",
 	"Language name: ",
-	"Quit string:",
-	"Balance string: ",
-	"Deposit string: ",
-	"Withdraw string: ",
-	"Help string: ",
-	"Unknown command string: ",
-	"Balance error string: ",
-	"Dedposit error string: ",
-	"Withdraw error string: ",
-	"Welcome message string: ",
-	"Balance message string: ",
-	"Desposit message string: ",
-	"Withdraw message string: ",
-	"Enter amount requst string: ",
-	"Enter one time key request string: ",
-	"Enter card number request string: ",
-	"Enter pin request string: ",
+	"Balance command: ",
+	"Deposit command: ",
+	"Withdraw command: ",
+	"Help command: ",
+	"Unknown command: ",
+	"Balance error: ",
+	"Dedposit error: ",
+	"Withdraw error: ",
+	"Welcome message: ",
+	"Balance message: ",
+	"Desposit message: ",
+	"Withdraw message: ",
+	"Help message: ",
+	"Enter amount requst: ",
+	"Enter one time key request: ",
+	"Enter card number request: ",
+	"Enter pin request: ",
 };
 
 int main(int argc, char **argv)
