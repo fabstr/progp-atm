@@ -1,7 +1,7 @@
 .PHONY: all wc clean run-server-valgrind run-client-valgrind test
 
 # the source files
-SRCCOMMON = protocol.c mlog.c sqlite3.c 
+SRCCOMMON = protocol.c mlog.c
 SRCSERVER = server.c serverdb.c $(SRCCOMMON)
 SRCCLIENT = client.c clientdb.c $(SRCCOMMON)
 SRCMANAGE = manage.c $(SRCCOMMON)
@@ -24,12 +24,12 @@ BINS = server client manage
 CFLAGS = -g -O0 -Wall -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
-LDLIBS = -lpthread -ldl -lreadline
-#LDLIBS = -lcrypto -lsqlite3
+LDLIBS = -lpthread -lreadline -lsqlite3
+#LDLIBS = -lcrypto
 
 # the c99 compiler
-CC = gcc # use this on linux
-#CC = clang # use this on os x
+#CC = gcc # use this on linux
+CC = clang # use this on os x
 
 # the output files
 all: server client manage
@@ -50,14 +50,14 @@ DSYMS = $(BINS:=.dSYM)
 DEPS = $(SRCSERVER:.c=.DEP) $(SRCCLIENT:.c=.DEP) $(SRCMANAGE:.c=.DEP)
 
 # the valgrind flags
-VLGDFLAGS = --leak-check=full --log-file=valgrind.log --track-origins=yes 
+VLGDFLAGS = --leak-check=full --track-origins=yes #--log-file=valgrind.log 
 
 run-server-valgrind: server server.dSYM
-	@rm valgrind.log
+	@rm -f valgrind.log
 	valgrind $(VLGDFLAGS) ./server
 run-client-valgrind: client client.dSYM
-	@rm valgrind.log
-	valgrind $(VLGDFLAGS) ./client
+	@rm -f valgrind.log
+	valgrind $(VLGDFLAGS) ./client localhost
 
 wc:
 	@wc -l *.c *.h | grep -i -v -e total -e sqlite3.h -e sqlite3.c | awk '{print $$1}' | \
