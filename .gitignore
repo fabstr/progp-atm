@@ -21,8 +21,6 @@ sqlite3.h
 apa
 apa.c
 
-stringmanager.c
-stringmanager.h
 
 docs
 doxygen
