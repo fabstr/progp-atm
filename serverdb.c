@@ -29,11 +29,6 @@ char *get_next_otp_string = "SELECT onetimekey FROM accounts "
 char *update_otp_string = "UPDATE accounts SET onetimekey = onetimekey + 2 "
 	"WHERE cardnumber LIKE :cardnumber AND pinhash LIKE :pin";
 
-/**
- * Initialise the database and the statements.
- * If there is an error, print it to stderr.
- * @return 0 on success or 1 on error.
- */
 int setup_db()
 {
 	int res = sqlite3_open(DBPATH, &db);
@@ -97,12 +92,6 @@ int close_db()
 	return sqlite3_close(db);
 }
 
-/**
- * Return the balance for the user specified in message
- * Return 0 on error, else 1.
- * @param m The message holding card number and pin
- * @param balance (OUT) An integer to hold the balance.
- */
 int getBalance(Message *m, uint16_t *balance)
 {
 	mlog("server.log", "getting balance for card # %d", m->card_number);
@@ -263,7 +252,8 @@ int updateOnetimekey(Message *m)
 	if (texthash == NULL) {
 		mlog("server.log", "Could not allocate memory for texthash.");
 		return 1;
-	} else if (sqlite3_bind_int(update_otp_stmt, 1, m->card_number) != SQLITE_OK) {
+	} else if (sqlite3_bind_int(update_otp_stmt, 1, m->card_number)
+			!= SQLITE_OK) {
 		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
 	} else if (sqlite3_bind_text(update_otp_stmt, 2, texthash, texthashlen, 
