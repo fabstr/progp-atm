@@ -21,7 +21,9 @@ int main(int argc, char **argv)
 
 	setup_db();
 
-	start_loop(hostname, port);
+	int socket = connectToServer(hostname, port);
+	start_loop(socket);
+	close(socket);
 
 	mlog("client.log", "cancelling serverthread");
 	pthread_cancel(serverthread);
@@ -133,22 +135,25 @@ void add_language(int socket, Message *m)
 	}
 }
 
-void start_loop(char *hostname, char *port)
+void start_loop(int socket)
 {
 	Credentials c;
 	bool haveCredentials = false;
 	bool looping = true;
 
+	/* our command strings */
 	char *str_poweroff = "poweroff";
 	char *str_quit = getString(cmd_quit, language_code);
 	char *str_balance = getString(cmd_balance, language_code);
 	char *str_deposit = getString(cmd_deposit, language_code);
 	char *str_withdraw = getString(cmd_withdraw, language_code);
-	char *str_unknown_command = getString(error_unknown_command, language_code);
+	char *str_unknown_command = getString(error_unknown_command,
+			language_code);
 	char *str_help = getString(msg_help, language_code);
 	char *str_help_cmd = getString(cmd_help, language_code);
 	char *str_change_language = "change language";
 
+	
 	while (looping == true) {
 		if (haveCredentials == false) {
 			char *str = getString(msg_welcome, language_code);
@@ -166,17 +171,11 @@ void start_loop(char *hostname, char *port)
 		} else if (strcmp(line, str_quit) == 0) {
 			haveCredentials = false;
 		} else if (strcmp(line, str_balance) == 0) {
-			int socket = connectToServer(hostname, port);
 			show_balance(socket, &c);
-			close(socket);
 		} else if (strcmp(line, str_deposit) == 0) {
-			int socket = connectToServer(hostname, port);
 			deposit_money(socket, &c);
-			close(socket);
 		} else if (strcmp(line, str_withdraw) == 0) {
-			int socket = connectToServer(hostname, port);
 			withdraw_money(socket, &c);
-			close(socket);
 		} else if (strcmp(line, str_help_cmd) == 0) {
 			printf("%s\n", str_help);
 		} else if (strcmp(line, "") == 0) {
@@ -186,9 +185,14 @@ void start_loop(char *hostname, char *port)
 		} else {
 			printf("%s\n", str_unknown_command);
 		}
+
 		free(line);
 	}
 
+	Message m = {.message_id = close_connection};
+	sendMessage(socket, &m);
+
+	/* free the command strings */
 	free(str_quit);
 	free(str_balance);
 	free(str_deposit);

@@ -17,6 +17,8 @@
  * @brief Handle a connection.
  *
  * Pass the Message through to handle_normal or handle_upgrade.
+ * Handle the connection in a loop until a close_connection is sent by the
+ * client, then return.
  *
  * @param socket The socket the message was received on.
  */

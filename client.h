@@ -79,10 +79,9 @@ void upgrade_handle(int socket);
  * By writing "poweroff", the client process is gracefully exited. The user can
  * change language by writing "change language".
  *
- * @param hostname The hostname of the server to connect to
- * @param port The port the server listens on.
+ * @param socket The socket file descriptor of the connection to the server.
  */
-void start_loop(char *hostname, char *port);
+void start_loop(int socket);
 
 /**
  * @brief Update the welcome message.

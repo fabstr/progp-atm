@@ -4,6 +4,7 @@
 
 void handle_upgrade(int socket, Message *m)
 {
+	/* don't do anything */
 }
 
 void handle_normal(int socket, Message *m)
@@ -85,26 +86,33 @@ void handle_connection(int socket)
 	mlog("server.log", "handling connection %d", socket);
 	Message *m = (Message *) malloc(sizeof(Message));
 	memset(m, 0, sizeof(Message));
-	getMessage(socket, m);
 
-	switch (m->message_id) {
-	case balance:
-	case withdraw:
-	case deposit:
-		mlog("server.log", "normal message %d", socket);
-		handle_normal(socket, m);
-		break;
-	case atm_key:
-	case language_add:
-	case welcome_update:
-		mlog("server.log", "upgrade message %d", socket);
-		handle_upgrade(socket, m);
-		break;
-	default:
-		m->message_id = no;
-		sendMessage(socket, m);
-		break;
+	while (m->message_id != close_connection) {
+		getMessage(socket, m);
+
+		switch (m->message_id) {
+		case balance:
+		case withdraw:
+		case deposit:
+			mlog("server.log", "normal message %d", socket);
+			handle_normal(socket, m);
+			break;
+		case atm_key:
+		case language_add:
+		case welcome_update:
+			mlog("server.log", "upgrade message %d", socket);
+			handle_upgrade(socket, m);
+			break;
+		case close_connection :
+			break;
+		default:
+			m->message_id = no;
+			sendMessage(socket, m);
+			break;
+		}
 	}
+
+	mlog("server.log", "closing connection");
 
 	free(m);
 	mlog("server.log", "closing db");

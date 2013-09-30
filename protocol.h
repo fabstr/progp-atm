@@ -44,6 +44,9 @@ typedef enum {
 
 	/* update messages */
 	atm_key, language_add, welcome_update,
+
+	/* control messages */
+	close_connection
 } Message_ID;
 
 /**
@@ -186,13 +189,14 @@ void sigchld_handler(int s);
 /**
  * @brief Start a server listening on port.
  *
- * Start a (stream) server that listens on the specified port, then calling
+ * Start a (stream) server that listens on the specified port, then calls
  * fork() for each connection. When the process is fork()'ed, call handle with
  * the accept()'ed socket.
  *
  * @param port The port to listen on.
  * @param handle A function to call for each connection. It will be passed the
- *               accept()'ed socket as its argument.
+ *               accept()'ed socket as its argument. The function should not
+ *               return until the socket is to be closed.
  * @param sock A pointer to the storage for the socket file descriptor, this
  *             makes it possible to close the socket from another part of the 
  *             program.
