@@ -20,15 +20,14 @@ OBJECTS = $(SERVEROBJECTS) $(CLIENTOBJECTS) $(MANAGEOBJECTS)
 # all binaries
 BINS = server client manage
 
-# the compiler flags add -Wno-deprecated to use openssl on os x
+# for some reason openssl is deprecated on os x
 CFLAGS = -g -O0 -Wall -Wno-deprecated -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
-LDLIBS = -lpthread -lreadline -lsqlite3 -lcrypto
+LDLIBS = -lpthread -lreadline -lsqlite3 -lcrypto -lssl
 
-# the c99 compiler
-#CC = gcc # use this on linux
-CC = clang # use this on os x
+# the c compiler, set to gcc on linux and clang on os x
+CC = clang
 
 # the output files
 all: server client manage
@@ -40,7 +39,7 @@ manage: $(MANAGEOBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(MANAGEOBJECTS) $(LDLIBS)
 
 # other files to clean
-OTHERCLEANING = valgrind.log manage.log client.log server.log
+OTHERCLEANING = valgrind.log manage.log client.log server.log *.d
 
 # dSYM's 
 DSYMS = $(BINS:=.dSYM) 
@@ -88,5 +87,8 @@ test: all
 	./client localhost 
 	killall server
 	@echo There is info in server.log and client.log
+
+docs: Doxyfile
+	doxygen Doxyfile
 
 -include $(DEPS)
