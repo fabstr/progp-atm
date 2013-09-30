@@ -303,12 +303,12 @@ int getCredentials(Credentials *target)
 		free(str);
 	}
 
+
 	res = 0;
 	while (res == 0) {
 		char *str = getString(rqst_pin, language_code);
-		char *pinstring = readline(str);
+		char *pinstring = getpass(str);
 		res = sscanf(pinstring, "%hd", &(target->pin));
-		free(pinstring);
 		free(str);
 	}
 

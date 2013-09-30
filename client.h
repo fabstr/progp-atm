@@ -44,7 +44,8 @@ void withdraw_money(int socket, Credentials *c);
 /**
  * @brief Ask the user for credentials.
  * 
- * The user will be prompted for card number and pin code.
+ * The user will be prompted for card number and pin code.  The pin code is 
+ * gotten with getpass, there will be no echoing of the pin code.
  *
  * @param target The memory block where to store the credentials.
  * @return 0 on success.
