@@ -21,11 +21,10 @@ OBJECTS = $(SERVEROBJECTS) $(CLIENTOBJECTS) $(MANAGEOBJECTS)
 BINS = server client manage
 
 # the compiler flags add -Wno-deprecated to use openssl on os x
-CFLAGS = -g -O0 -Wall -D_GNU_SOURCE $(LOGGING)
+CFLAGS = -g -O0 -Wall -Wno-deprecated -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
-LDLIBS = -lpthread -lreadline -lsqlite3
-#LDLIBS = -lcrypto
+LDLIBS = -lpthread -lreadline -lsqlite3 -lcrypto
 
 # the c99 compiler
 #CC = gcc # use this on linux
@@ -82,12 +81,12 @@ clean:
 		rm -f $*.d
 
 test: all
-	rm -f server.log
+	rm -f server.log client.log
 	clear
 	make
 	./server 1234 &
-	./client localhost 1234
+	./client localhost 
 	killall server
-	cat server.log
+	@echo There is info in server.log and client.log
 
 -include $(DEPS)
