@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "protocol.h"
+#include "networking.h"
 #include "serverdb.h"
 #include "mlog.h"
 

@@ -1,7 +1,7 @@
 .PHONY: all wc clean run-server-valgrind run-client-valgrind test
 
 # the source files
-SRCCOMMON = protocol.c mlog.c
+SRCCOMMON = networking.c mlog.c
 SRCSERVER = server.c serverdb.c $(SRCCOMMON)
 SRCCLIENT = client.c clientdb.c $(SRCCOMMON)
 SRCMANAGE = manage.c $(SRCCOMMON)

@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 #include "mlog.h"
-#include "protocol.h"
+#include "networking.h"
 #include "clientdb.h"
 
 

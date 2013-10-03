@@ -10,7 +10,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#include "protocol.h"
+#include "networking.h"
 
 /**
  * @brief Query the user for strings in the language and send the to a host.

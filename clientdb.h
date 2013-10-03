@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "protocol.h"
+#include "networking.h"
 #include "mlog.h"
 #include "sqlite3.h"
 
