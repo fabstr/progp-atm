@@ -21,9 +21,10 @@ int main(int argc, char **argv)
 
 	setup_db();
 
-	int socket = connectToServer(hostname, port);
-	start_loop(socket);
-	close(socket);
+	SSLConnection con;
+	connectToServer(hostname, port, &con);
+	start_loop(con.bio);
+	/*close_openssl_client(con);*/
 
 	mlog("client.log", "cancelling serverthread");
 	pthread_cancel(serverthread);
@@ -42,24 +43,24 @@ void *server_thread(void *arg)
 	return NULL;
 }
 
-void upgrade_handle(int socket)
+void upgrade_handle(BIO *bio)
 {
-	mlog("client.log", "got connection (%d)", socket);
+	mlog("client.log", "got connection");
 	extern pthread_mutex_t dbmutex;
 
 	Message m;
-	getMessage(socket, &m);
+	getMessage(bio, &m);
 	switch (m.message_id) {
 	case welcome_update:
 		mlog("client.log", "got upgrade welcome");
 		pthread_mutex_lock(&dbmutex);
-		update_welcome(socket, &m);
+		update_welcome(bio, &m);
 		pthread_mutex_unlock(&dbmutex);
 		break;
 	case language_add:
 		mlog("client.log", "got add language");
 		pthread_mutex_lock(&dbmutex);
-		add_language(socket, &m);
+		add_language(bio, &m);
 		pthread_mutex_unlock(&dbmutex);
 		break;
 	default:
@@ -68,7 +69,7 @@ void upgrade_handle(int socket)
 	}
 }
 
-void update_welcome(int socket, Message *m)
+void update_welcome(BIO *bio, Message *m)
 {
 	int nNetworkStrings = m->sum;
 	int nStringsGotten = 0;
@@ -78,7 +79,7 @@ void update_welcome(int socket, Message *m)
 	mlog("client.log", "nNetworkStrings = %d", nNetworkStrings);
 
 	for (i=0; i<nNetworkStrings; i++) {
-		if (getNetworkString(socket, &(strings[i])) != 0) {
+		if (getNetworkString(bio, &(strings[i])) != 0) {
 			mlog("client.log", "Could not get network string: %s\n",
 					strerror(errno));
 		} else {
@@ -110,14 +111,14 @@ void update_welcome(int socket, Message *m)
 	}
 }
 
-void add_language(int socket, Message *m)
+void add_language(BIO *bio, Message *m)
 {
 	int nNetworkStrings = m->sum;
 	int i;
 	NetworkString strings[nNetworkStrings];
 
 	for (i=0; i<nNetworkStrings; i++) {
-		if (getNetworkString(socket, &(strings[i])) != 0) {
+		if (getNetworkString(bio, &(strings[i])) != 0) {
 			mlog("client.log", "Could not get network string: %s\n",
 					strerror(errno));
 		}
@@ -135,7 +136,7 @@ void add_language(int socket, Message *m)
 	}
 }
 
-void start_loop(int socket)
+void start_loop(BIO *bio)
 {
 	Credentials c;
 	bool haveCredentials = false;
@@ -171,11 +172,11 @@ void start_loop(int socket)
 		} else if (strcmp(line, str_quit) == 0) {
 			haveCredentials = false;
 		} else if (strcmp(line, str_balance) == 0) {
-			show_balance(socket, &c);
+			show_balance(bio, &c);
 		} else if (strcmp(line, str_deposit) == 0) {
-			deposit_money(socket, &c);
+			deposit_money(bio, &c);
 		} else if (strcmp(line, str_withdraw) == 0) {
-			withdraw_money(socket, &c);
+			withdraw_money(bio, &c);
 		} else if (strcmp(line, str_help_cmd) == 0) {
 			printf("%s\n", str_help);
 		} else if (strcmp(line, "") == 0) {
@@ -190,7 +191,7 @@ void start_loop(int socket)
 	}
 
 	Message m = {.message_id = close_connection};
-	sendMessage(socket, &m);
+	sendMessage(bio, &m);
 
 	/* free the command strings */
 	free(str_quit);
@@ -202,7 +203,7 @@ void start_loop(int socket)
 	free(str_help_cmd);
 }
 
-void show_balance(int socket, Credentials *c)
+void show_balance(BIO *bio, Credentials *c)
 {
 	Message *m = (Message *) malloc(sizeof(Message));
 	m->message_id = balance;
@@ -212,8 +213,8 @@ void show_balance(int socket, Credentials *c)
 	m->onetimecode = 0;
 
 	Message answer;
-	sendMessage(socket, m);
-	getMessage(socket, &answer);
+	sendMessage(bio, m);
+	getMessage(bio, &answer);
 
 	if (answer.message_id != balance) {
 		char *str = getString(error_balance, language_code);
@@ -229,7 +230,7 @@ void show_balance(int socket, Credentials *c)
 	free(m);
 }
 
-void deposit_money(int socket, Credentials *c)
+void deposit_money(BIO *bio, Credentials *c)
 {
 	char *str1 = getString(rqst_enter_amount, language_code);
 	uint16_t amount = askForInteger(str1);
@@ -244,8 +245,8 @@ void deposit_money(int socket, Credentials *c)
 	};
 	
 	Message answer;
-	sendMessage(socket, &m);
-	getMessage(socket, &answer);
+	sendMessage(bio, &m);
+	getMessage(bio, &answer);
 
 	if (answer.message_id != deposit) {
 		char *str2 = getString(error_deposit, language_code);
@@ -258,7 +259,7 @@ void deposit_money(int socket, Credentials *c)
 	}
 }
 
-void withdraw_money(int socket, Credentials *c)
+void withdraw_money(BIO *bio, Credentials *c)
 {
 	char *str1 = getString(rqst_enter_amount, language_code);
 	uint16_t amount = askForInteger(str1);
@@ -277,8 +278,8 @@ void withdraw_money(int socket, Credentials *c)
 	};
 	
 	Message answer;
-	sendMessage(socket, &m);
-	getMessage(socket, &answer);
+	sendMessage(bio, &m);
+	getMessage(bio, &answer);
 
 	if (answer.message_id != withdraw) {
 		char *str3 = getString(error_withdraw, language_code);

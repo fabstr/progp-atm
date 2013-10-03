@@ -23,7 +23,7 @@
  * @param socket The socket to send messages on
  * @param c The credentials of the user.
  */
-void show_balance(int socket, Credentials *c);
+void show_balance(BIO *bio, Credentials *c);
 
 /**
  * @brief Deposit money for the user.
@@ -31,7 +31,7 @@ void show_balance(int socket, Credentials *c);
  * @param socket The socket to send data on.
  * @param c The credentials of the user.
  */
-void deposit_money(int socket, Credentials *c);
+void deposit_money(BIO *bio, Credentials *c);
 
 /**
  * @brief Withdraw money for the user.
@@ -39,7 +39,7 @@ void deposit_money(int socket, Credentials *c);
  * @param socket The socket to send data on.
  * @param c The credentials of the user.
  */
-void withdraw_money(int socket, Credentials *c);
+void withdraw_money(BIO *bio, Credentials *c);
 
 /**
  * @brief Ask the user for credentials.
@@ -70,7 +70,7 @@ uint16_t askForInteger(char *prompt);
  *
  * @param socket The socket to receive data on.
  */
-void upgrade_handle(int socket);
+void upgrade_handle(BIO *bio);
 
 /**
  * @brief The main loop for the client
@@ -82,7 +82,7 @@ void upgrade_handle(int socket);
  *
  * @param socket The socket file descriptor of the connection to the server.
  */
-void start_loop(int socket);
+void start_loop(BIO *bio);
 
 /**
  * @brief Update the welcome message.
@@ -93,7 +93,7 @@ void start_loop(int socket);
  * @param socket The socket to receive data on
  * @param m The message that says two network strings are to be expected.
  */
-void update_welcome(int socket, Message *m);
+void update_welcome(BIO *bio, Message *m);
 
 /**
  * @brief Add a language to the client.
@@ -110,7 +110,7 @@ void update_welcome(int socket, Message *m);
  * @param socket The socket to recieve data on
  * @param m The message that specifies the number of network strings to expect.a
  */
-void add_language(int socket, Message *m);
+void add_language(BIO *bio, Message *m);
 
 /**
  * @brief Function to start a thread for the upgrade server.

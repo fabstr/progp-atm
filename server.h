@@ -22,7 +22,7 @@
  *
  * @param socket The socket the message was received on.
  */
-void handle_connection(int socket);
+void handle_connection(BIO *bio);
 
 /**
  * @brief Handle an upgrade message.
@@ -32,12 +32,12 @@ void handle_connection(int socket);
  * @param socket The connection to the atm
  * @param m The message that was sent
  */
-void handle_upgrade(int socket, Message *m);
+void handle_upgrade(BIO *bio, Message *m);
 	
 /**
  * @brief Handle a normal atm to server message.
  * @param socket The connection to the atm
  * @param m The message that was sent
  */
-void handle_normal(int socket, Message *m);
+void handle_normal(BIO *bio, Message *m);
 #endif /* SERVER_H */

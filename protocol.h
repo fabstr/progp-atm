@@ -1,9 +1,9 @@
 /**
- * @file protocol.h
+ * @file protocol-ssl.h
  * @brief Network-related stuff.
  *
  * protocol.h defines functions for the client and server to talk to each other
- * over the internet.
+ * over the internet. These functions use openssl.
  */
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -20,6 +20,10 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <sys/wait.h>
+
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include "mlog.h"
 
@@ -117,6 +121,17 @@ typedef struct {
 } Credentials;
 
 /**
+ * @brief To manage openssl stuff.
+ */
+typedef struct {
+	/** @brief The openssl bio */
+	BIO *bio;
+
+	/** @brief The openssl ssl context */
+	SSL_CTX *ctx;
+} SSLConnection;
+
+/**
  * @brief Chose the correct socket address, for IPv4 or IPv6.
  * @param socketaddress 
  * @return The socket address, as sin_addr or sin6_addr.
@@ -135,7 +150,7 @@ void *get_ipv4_or_ipv6_addr(struct sockaddr *socketaddress);
  * @param target A pointer to a memory block where to store the message.
  * @return 0 on success, or -1 on failure.
  */
-int getMessage(int connection, Message *target);
+int getMessage(BIO *bio, Message *target);
 
 /**
  * @brief Send a message over connection
@@ -148,7 +163,7 @@ int getMessage(int connection, Message *target);
  * @param m The message to send
  * @return The number of bytes sent.
  */
-size_t sendMessage(int connection, Message *msg);
+size_t sendMessage(BIO *bio, Message *msg);
 
 /**
  * @brief Print a message to stdout.
@@ -167,7 +182,7 @@ void printMessage(Message *m);
  * @param port The port to connect on.
  * @return EXIT_FAILURE on failure, or a socket file descriptor on success.
  */
-int connectToServer(char *hostname, char *port);
+int connectToServer(char *hostname, char *port, SSLConnection *con);
 
 /**
  * @brief Send a network string.
@@ -179,7 +194,7 @@ int connectToServer(char *hostname, char *port);
  * @param string The string to send.
  * @return 0 on sucess, else non-zero.
  */
-int sendNetworkString(int socket, char *string);
+int sendNetworkString(BIO *bio, char *string);
 
 /**
  * 
@@ -202,7 +217,7 @@ void sigchld_handler(int s);
  *             program.
  * @return EXIT_FAILURE on failure, it should not return on success.
  */
-int start_server(char *port, void(*handle)(int), int *sock);
+int start_server(char *port, void(*handle)(BIO*), int *sock);
 
 /**
  * @brief Receive a network string.
@@ -214,7 +229,20 @@ int start_server(char *port, void(*handle)(int), int *sock);
  * @param nstr The network string to store the data in
  * @return 0 on success, else 1.
  */
-int getNetworkString(int socket, NetworkString *nstr);
+int getNetworkString(BIO *bio, NetworkString *nstr);
 
+/**
+ * @brief Initialize openssl and return an SSL context for a client.
+ *
+ * @return The ssl context.
+ */
+SSL_CTX *init_openssl_client();
+
+/**
+ * @brief Initialize openssl and return an SSL context for a server.
+ */
+SSL_CTX *init_openssl_server();
+
+void close_openssl_client();
 
 #endif /* PROTOCOL_H */

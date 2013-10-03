@@ -79,7 +79,7 @@ clean:
 		-e '/^$$/ d' -e 's/$$/ :/' < $*.d >> $*.DEP; \
 		rm -f $*.d
 
-test: all
+test: server client
 	rm -f server.log client.log
 	clear
 	make

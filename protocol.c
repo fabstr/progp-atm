@@ -1,67 +1,68 @@
 #include "protocol.h"
 
-int connectToServer(char *hostname, char *port)
+int connectToServer(char *hostname, char *port, SSLConnection *con)
 {
-	int sock;
-	struct addrinfo hints;
-	struct addrinfo *servinfo, *p;
-	int error;
-	char other_ip[INET6_ADDRSTRLEN];
+	/* first create some objects */
+	BIO *bio;
+	SSL *ssl;
+	SSL_CTX *ctx;
 
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
+	/* then set up the library and the ssl context */
+	ERR_load_BIO_strings();
+	SSL_load_error_strings();
+	SSL_library_init();
+	ctx = SSL_CTX_new(SSLv23_client_method());
 
-	if ((error = getaddrinfo(hostname, port, &hints, &servinfo)) != 0) {
-		mlog("client.log", "getaddrinfo: %s\n", gai_strerror(error));
+	/* load the trust store */
+	if (SSL_CTX_load_verify_locations(ctx, "ca.pem", NULL) == 0) {
+		mlog("client.log", "Error loading certificate authoroty.\n");
+		ERR_print_errors_fp(stderr);
+		SSL_CTX_free(ctx);
 		return EXIT_FAILURE;
 	}
 
-	for (p=servinfo; p != NULL; p = p->ai_next) {
-		if ((sock = socket(p->ai_family, p->ai_socktype,
-						p->ai_protocol)) == -1) {
-			mlog("client.log", "client: socket: %s", strerror(errno));
-			continue;
-		}
+	/* setup the connection and set the auto retry flag */
+	bio = BIO_new_ssl_connect(ctx);
+	BIO_get_ssl(bio, &ssl);
+	SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
-		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sock);
-			mlog("client.log", "client: socket: %s", strerror(errno));
-			continue;
-		}
+	/* set the host */
+	char *host;
+	asprintf(&host, "%s:%s", hostname, port);
+	BIO_set_conn_hostname(bio, host);
+	free(host);
 
-		break;
-	}
-
-	if (p == NULL) {
-		mlog("client.log", "client: failed to connect");
+	/* connect */
+	if (BIO_do_connect(bio) <= 0) {
+		mlog("client.log", "Error attempting to connect\n");
+		ERR_print_errors_fp(stderr);
+		BIO_free_all(bio);
+		SSL_CTX_free(ctx);
 		return EXIT_FAILURE;
 	}
 
-	inet_ntop(p->ai_family,
-			get_ipv4_or_ipv6_addr((struct sockaddr *) p->ai_addr),
-			other_ip, sizeof(other_ip));
-	mlog("client.log", "connecting to %s\n", other_ip);
-
-	freeaddrinfo(servinfo);
-
-	return sock;
-}
-
-void *get_ipv4_or_ipv6_addr(struct sockaddr *socketaddress)
-{
-	if (socketaddress->sa_family == AF_INET) {
-		return &(((struct sockaddr_in *) socketaddress)->sin_addr);
+	/* check the certificate */
+	if (SSL_get_verify_result(ssl) != X509_V_OK) {
+		fprintf(stderr, "Certificate verification error: %ld\n", 
+				SSL_get_verify_result(ssl));
+		BIO_free_all(bio);
+		SSL_CTX_free(ctx);
+		return EXIT_FAILURE;
 	}
 
-	return &(((struct sockaddr_in6 *) socketaddress)->sin6_addr);
+	/* write bio and ctx to con and return success  */
+	con->bio = bio;
+	con->ctx = ctx;
+
+	return 0;
 }
 
-int getMessage(int connection, Message *target)
+int getMessage(BIO *bio, Message *target)
 {
 	NetworkMessage nm;
-	int received;
-	if ((received = recv(connection, &nm, sizeof(NetworkMessage), 0)) == -1) {
+	int read = BIO_read(bio, &nm, sizeof(NetworkMessage));
+	if (read <= 0) {
+		mlog("client.log", "could not read openssl");
 		return -1;
 	}
 
@@ -73,22 +74,17 @@ int getMessage(int connection, Message *target)
 	return 0;
 }
 
-size_t sendMessage(int connection, Message *msg)
+size_t sendMessage(BIO *bio, Message *msg)
 {
-	NetworkMessage toSend;
-	memset(&toSend, 0, sizeof(NetworkMessage));
+	NetworkMessage toSend = {
+		.message_id = (uint8_t) msg->message_id,
+		.sum = htons(msg->sum),
+		.pin = htons(msg->pin),
+		.onetimecode = msg->onetimecode,
+		.card_number = htons(msg->card_number)
+	};
 
-	uint8_t message_id = (uint8_t) msg->message_id;
-
-	toSend.message_id = message_id;
-	toSend.sum = htons(msg->sum);
-	toSend.pin =  htons(msg->pin);
-	toSend.onetimecode =  msg->onetimecode;
-	toSend.card_number = htons(msg->card_number);
-
-	int toReturn = send(connection, &toSend, sizeof(NetworkMessage), 0);
-
-	return toReturn;
+	return BIO_write(bio, &toSend, sizeof(NetworkMessage));
 }
 
 void printMessage(Message *m)
@@ -100,151 +96,167 @@ void printMessage(Message *m)
 	printf("card_number: %d\n", m->card_number);
 }
 
-int sendNetworkString(int socket, char *string)
+int sendNetworkString(BIO *bio, char *string)
 {
 	uint8_t length = strlen(string);
-	if (send(socket, &length, 1, 0) <= 0) {
+	int res;
+	res = BIO_write(bio, &length, sizeof(length));
+	if (res <= 0) {
 		return -1;
-	} else if (send(socket, string, length, 0) <= 0) {
+	}
+
+	res = BIO_write(bio, string, length);
+	if (res <= 0) {
 		return -1;
 	}
 
 	return 0;
 }
 
-int getNetworkString(int socket, NetworkString *nstr)
+int getNetworkString(BIO *bio, NetworkString *nstr)
 {
 	mlog("server.log", "getNetworkString");
 
 	/* first receive the length */
 	uint8_t length;
-	if (recv(socket, &length, 1, 0) == -1) {
-		return 1;
+	int rec = BIO_read(bio, &length, sizeof(length));
+	if (rec != sizeof(length)) {
+		return -1;
 	}
 
 	mlog("server.log", "got length = %d", length);
 
 	/* then receive the string */
 	nstr->string = (char *) malloc(length + 1);
-	size_t received;
-	if ((received = recv(socket, nstr->string, length, 0)) == -1) {
+	rec = BIO_read(bio, nstr->string, length);
+	if (rec <= 0) {
 		free(nstr->string);
-		return 1;
+		return -1;
 	}
 
 	nstr->string_length = length;
 	nstr->string[length] = '\0';
 
-	mlog("server.log", "read %d bytes and got string '%s'", (int) received,
+	mlog("server.log", "read %d bytes and got string '%s'", rec,
 			nstr->string);
 
 	return 0;
 }
 
-int start_server(char *port, void(*handle)(int), int *sock)
+int password_callback(char *buf, int size, int rwflag, void *userdata)
 {
-	int new_connection;
+    /* For the purposes of this demonstration, the password is "ibmdw" */
 
-	struct addrinfo hints;
-	struct addrinfo *servinfo, *p;
-	
-	struct sockaddr_storage other_address;
-	socklen_t sin_size;
-	struct sigaction sigact;
-	int yes = 1;
-	char other_ip[INET6_ADDRSTRLEN];
-	int error;
+    printf("*** Callback function called\n");
+    strcpy(buf, "ibmdw");
+    return 1;
+}
 
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
+int start_server(char *port, void(*handle)(BIO*), int *sock)
+{
+	SSL_CTX *ctx;
+	SSL *ssl;
+	BIO *bio, *abio, *out/*, *sbio*/;
 
-	if ((error = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
-		perror("getaddrinfo");
+	int (*callback)(char *, int, int, void *) = &password_callback;
+
+	printf("Secure Programming with the OpenSSL API, Part 4:\n");
+	printf("Serving it up in a secure manner\n\n");
+
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	ERR_load_SSL_strings();
+	OpenSSL_add_all_algorithms();
+
+	printf("Attempting to create SSL context... ");
+	ctx = SSL_CTX_new(SSLv23_server_method());
+	if(ctx == NULL)
+	{
+		printf("Failed. Aborting.\n");
 		return EXIT_FAILURE;
 	}
 
-	for (p = servinfo; p != NULL; p = p->ai_next) {
-		if ((*sock = socket(p->ai_family, p->ai_socktype, 
-						p->ai_protocol)) == -1) {
-			mlog("server.log", "socket: %s", strerror(errno));
-			continue;
-		}
+	printf("\nLoading certificates...\n");
+	SSL_CTX_set_default_passwd_cb(ctx, callback);
+	if(!SSL_CTX_use_certificate_file(ctx, "certificate.pem", SSL_FILETYPE_PEM))
+	{
+		ERR_print_errors_fp(stdout);
+		SSL_CTX_free(ctx);
+		return EXIT_FAILURE;
+	}
+	if(!SSL_CTX_use_PrivateKey_file(ctx, "private.key", SSL_FILETYPE_PEM))
+	{
+		ERR_print_errors_fp(stdout);
+		SSL_CTX_free(ctx);
+		return EXIT_FAILURE;
+	}
 
-		if (setsockopt(*sock, SOL_SOCKET, SO_REUSEADDR, &yes, 
-					sizeof(int)) == -1) {
-			perror("setsockopt");
+	printf("Attempting to create BIO object... ");
+	bio = BIO_new_ssl(ctx, 0);
+	if(bio == NULL)
+	{
+		printf("Failed. Aborting.\n");
+		ERR_print_errors_fp(stdout);
+		SSL_CTX_free(ctx);
+		return EXIT_FAILURE;
+	}
+
+	printf("\nAttempting to set up BIO for SSL...\n");
+	BIO_get_ssl(bio, &ssl);
+	SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+
+	abio = BIO_new_accept("4422");
+	BIO_set_accept_bios(abio, bio);
+
+	printf("Waiting for incoming connection...\n");
+
+	if(BIO_do_accept(abio) <= 0)
+	{
+		ERR_print_errors_fp(stdout);
+		SSL_CTX_free(ctx);
+		BIO_free_all(bio);
+		BIO_free_all(abio);
+		return EXIT_FAILURE;
+	}
+
+	/* the server loop */
+	while (true) {
+		if (BIO_do_accept(abio) <= 0) {
+			ERR_print_errors_fp(stdout);
+			SSL_CTX_free(ctx);
+			BIO_free_all(bio);
+			BIO_free_all(abio);
 			return EXIT_FAILURE;
 		}
 
-		if (bind(*sock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(*sock);
-			mlog("server.log", "bind: %s", strerror(errno));
-			continue;
-		}
-
-		break;
-	}
-
-	if (p == NULL) {
-		mlog("server.log", "server: failed to bind\n");
-		return EXIT_FAILURE;
-	}
-
-	freeaddrinfo(servinfo);
-
-	if (listen(*sock, BACKLOG) == -1) {
-		mlog("server.log", "listen: %s", strerror(errno));
-		return EXIT_FAILURE;
-	}
-
-	sigact.sa_handler = sigchld_handler;
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags = SA_RESTART;
-	if (sigaction(SIGCHLD, &sigact, NULL) == -1) {
-		mlog("server.log", "sigaction: %s", strerror(errno));
-		return EXIT_FAILURE;
-	}
-
-	mlog("server.log", "waiting for connections");
-
-	while (true) {
-		sin_size = sizeof(other_address);
-		new_connection = accept(*sock,
-				(struct sockaddr *) &other_address, &sin_size);
-
-		mlog("server.log", "accepted %d", new_connection);
-
-		if (new_connection == -1) {
-			mlog("server.log", "accept: %s", strerror(errno));
-			continue;
-		}
-
-		inet_ntop(other_address.ss_family, 
-				get_ipv4_or_ipv6_addr((struct sockaddr *) 
-				&other_address), other_ip, sizeof(other_ip));
-		mlog("server.log", "got connection (%d) from %s", new_connection, 
-			other_ip);
+		out = BIO_pop(abio);
 
 		if (!fork()) {
-			/* child process */
-			mlog("server.log", "fork: calling handle");
-			close(*sock);
-			handle(new_connection);
-			close(new_connection);
-			return EXIT_SUCCESS;
+			if (BIO_do_handshake(out) <= 0) {
+				printf("Handshake failed.\n");
+				ERR_print_errors_fp(stdout);
+				SSL_CTX_free(ctx);
+				BIO_free_all(bio);
+				BIO_free_all(abio);
+				return EXIT_FAILURE;
+			}
+
+			handle(out);
+			if (BIO_flush(out) <= 0) {
+				printf("flushing failure");
+			}
+
+			BIO_free_all(out);
 		}
 
-		close(new_connection);
+		BIO_free_all(out);
 	}
 
-	close(*sock);
-	return EXIT_SUCCESS;
-}
+	BIO_free_all(bio);
+	BIO_free_all(abio);
 
-void sigchld_handler(int s)
-{
-	while (waitpid(-1, NULL, WNOHANG) > 0) ;
+	SSL_CTX_free(ctx);
+
+	return EXIT_SUCCESS;
 }
 

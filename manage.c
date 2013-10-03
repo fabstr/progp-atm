@@ -25,6 +25,8 @@ char *queryStrings[STRING_COUNT] = {
 
 int main(int argc, char **argv)
 {
+	init_openssl_client();
+
 	while (1) {
 		char *cmd = readline(">> ");
 		if (strcmp(cmd, "quit") == 0) {
@@ -40,6 +42,8 @@ int main(int argc, char **argv)
 		free(cmd);
 	}
 
+	close_openssl_client();
+
 	return EXIT_SUCCESS;
 }
 
@@ -54,7 +58,8 @@ int addLanguage()
 	char *host = readline("Hostname: ");
 
 	/* open a socket to the host */
-	int socket = connectToServer(host, UPGRPORT);
+	SSLConnection con;
+	connectToServer(host, UPGRPORT, &con);
 
 	/* we're done with host */
 	free(host);
@@ -70,7 +75,7 @@ int addLanguage()
 
 
 	mlog("manage.log", "entering addLanguage loop");
-	sendMessage(socket, &m);
+	sendMessage(con.bio, &m);
 
 	/*
 	 * for each string in queryStrings, ask for it and send the result to
@@ -82,17 +87,15 @@ int addLanguage()
 		if (str == NULL) {
 			fprintf(stderr, "Fatal error: could not read string.\n");
 			return 1;
-		} else if (sendNetworkString(socket, str) != 0) {
+		} else if (sendNetworkString(con.bio, str) != 0) {
 			fprintf(stderr, "Could not send network string: %s\n", 
 					strerror(errno));
 			free(str);
-			close(socket);
 			return 1;
 		}
 		free(str);
 	}
 
-	close(socket);
 	mlog("manage.log", "addLanguage sent");
 
 	return 0;
@@ -104,7 +107,8 @@ int changeWelcome()
 	char *lang = readline("Language code: ");
 	char *host = readline("Host: ");
 
-	int socket = connectToServer(host, UPGRPORT);
+	SSLConnection con;
+	connectToServer(host, UPGRPORT, &con);
 	int toReturn = 0;
 
 	mlog("manage.log", "sending welcome update");
@@ -118,15 +122,15 @@ int changeWelcome()
 		.sum = 2,
 	};
 
-	if (sendMessage(socket, &m) == -1) {
+	if (sendMessage(con.bio, &m) == -1) {
 		mlog("manage.log", "Could not send language_add message: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, lang) == -1) {
+	} else if (sendNetworkString(con.bio, lang) == -1) {
 		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, msg) == -1) {
+	} else if (sendNetworkString(con.bio, msg) == -1) {
 		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
@@ -134,6 +138,5 @@ int changeWelcome()
 		mlog("manage.log", "welcome update sent");
 	}
 
-	close(socket);
 	return toReturn;
 }
