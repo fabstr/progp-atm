@@ -20,8 +20,15 @@ OBJECTS = $(SERVEROBJECTS) $(CLIENTOBJECTS) $(MANAGEOBJECTS)
 # all binaries
 BINS = server client manage
 
-# for some reason openssl is deprecated on os x
-CFLAGS = -g -O0 -Wall -Wno-deprecated -D_GNU_SOURCE $(LOGGING)
+# the directory where to install the programs
+PROGRAMS = programs
+SERVERPATH = $(PROGRAMS)/server
+CLIENTPATH = $(PROGRAMS)/client
+MANAGEPATH = $(PROGRAMS)/manage
+
+OPENSSLFILES = ca.key ca.crt index serial 0*.pem
+
+CFLAGS = -g -O0 -Wall -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
 LDLIBS = -lpthread -lreadline -lsqlite3 -lpolarssl
@@ -67,6 +74,7 @@ clean:
 	@rm -f $(OTHERCLEANING) # other stuff
 	@rm -f $(DEPS)  # dependencies
 	@rm -rf $(DSYMS) # debugging info
+	@rm -rf $(OPENSSLFILES) # openssl files
 
 %.dSYM : % 
 	dsymutil $* -o $*.dSYM
@@ -98,5 +106,67 @@ test-manage: all
 
 docs: Doxyfile
 	doxygen Doxyfile
+
+setup: all
+	@# make sure the files neccessary for openssl exists
+	touch index
+	echo "01" > serial
+	cp files/ca.key ca.key
+	cp files/ca.crt ca.crt
+	
+	@# make sure the directories exist
+	mkdir -p $(SERVERPATH) $(CLIENTPATH) $(MANAGEPATH)
+	
+	@# copy the server binary and the server database
+	cp server $(SERVERPATH)/server
+	cp files/db.sqlite $(SERVERPATH)/db.sqlite
+	 
+	@# copy the client binary and the language database to client 
+	cp client $(CLIENTPATH)/client
+	cp files/client.sqlite $(CLIENTPATH)/client.sqlite
+	 
+	@# copy the manage binary
+	cp manage $(MANAGEPATH)/manage
+	
+	@# copy ca.crt to all folders
+	cp files/ca.crt $(SERVERPATH)/ca.crt 
+	cp files/ca.crt $(CLIENTPATH)/ca.crt 
+	cp files/ca.crt $(MANAGEPATH)/ca.crt
+	
+	@# generate the server's key, certificate signing request and sign the 
+	@# certificate
+	@clear
+	@echo "---------- SERVER ----------"
+	openssl genrsa -out $(SERVERPATH)/server.key 2048
+	openssl req -config files/ssl.conf -new \
+		-key $(SERVERPATH)/server.key \
+		-out $(SERVERPATH)/server.req
+	openssl ca -config files/ssl.conf -in $(SERVERPATH)/server.req \
+		-out $(SERVERPATH)/server.crt
+	rm $(SERVERPATH)/server.req 
+	
+	@# generate the client's key, certificate signing request and sign the 
+	@# certificate
+	@clear
+	@echo "---------- CLIENT ----------"
+	openssl genrsa -out $(CLIENTPATH)/client.key 2048
+	openssl req -config files/ssl.conf -new \
+		-key $(CLIENTPATH)/client.key \
+		-out $(CLIENTPATH)/client.req
+	openssl ca -config files/ssl.conf -in $(CLIENTPATH)/client.req \
+		-out $(CLIENTPATH)/client.crt
+	rm $(CLIENTPATH)/client.req 
+	
+	@# generate the managers key, certificate signing request and sign the 
+	@# certificate
+	@clear
+	@echo "---------- MANAGE ----------"
+	openssl genrsa -out $(MANAGEPATH)/manage.key 2048
+	openssl req -config files/ssl.conf -new \
+		-key $(MANAGEPATH)/manage.key \
+		-out $(MANAGEPATH)/manage.req
+	openssl ca -config files/ssl.conf -in $(MANAGEPATH)/manage.req \
+		-out $(MANAGEPATH)/manage.crt
+	rm $(MANAGEPATH)/manage.req 
 
 -include $(DEPS)
