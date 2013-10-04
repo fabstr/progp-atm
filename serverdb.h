@@ -10,11 +10,23 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sqlite3.h>
+#include <polarssl/sha256.h>
+
 #include "networking.h"
 #include "mlog.h"
-#include "sqlite3.h"
 
 #define DBPATH "db.sqlite"
+
+/**
+ * @brief Hash the pin code.
+ * 
+ * Use sha256 to hash the pin code and convert the hash to a string.
+ * @param pin The pin code to hash
+ * @param buff The buffer to hold the hash sum string (including a null byte).
+ * @return 0 on success, 1 on failure.
+ */
+void hash_pin(uint16_t pin, char buff[65]);
 
 /**
  * @brief Initialize the sqlite connections.

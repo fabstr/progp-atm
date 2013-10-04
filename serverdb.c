@@ -29,6 +29,20 @@ char *get_next_otp_string = "SELECT onetimekey FROM accounts "
 char *update_otp_string = "UPDATE accounts SET onetimekey = onetimekey + 2 "
 	"WHERE cardnumber LIKE :cardnumber AND pinhash LIKE :pin";
 
+void hash_pin(uint16_t pin, char buff[65])
+{
+	unsigned char blobbuff[32];
+	sha256((unsigned char *) &pin, sizeof(pin), blobbuff, 0);
+
+	int i;
+	for (i=0; i<32; i++) {
+		char *pos = buff + i + i;
+		sprintf(pos, "%02x", blobbuff[i]);
+	}
+
+	buff[64] = '\0';
+}
+
 int setup_db()
 {
 	int res = sqlite3_open(DBPATH, &db);
@@ -97,19 +111,19 @@ int getBalance(Message *m, uint16_t *balance)
 	mlog("server.log", "getting balance for card # %d", m->card_number);
 	int toReturn = 0;
 
-	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->pin);
-	int texthashlen = strlen(texthash);
+	char *pinhash = (char *) malloc(65);
+	hash_pin(m->pin, pinhash);
+	int pinhashlen = strlen(pinhash);
 	
 	*balance = 4;
 
-	if (texthash == NULL) {
-		mlog("server.log", "Could not allocate memory for texthash.");
+	if (pinhash == NULL) {
+		mlog("server.log", "Could not allocate memory for pinhash.");
 		return 1;
 	} else if (sqlite3_bind_int(balance_stmt, 1, m->card_number) != SQLITE_OK) {
 		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
-	} else if (sqlite3_bind_text(balance_stmt, 2, texthash, texthashlen, 
+	} else if (sqlite3_bind_text(balance_stmt, 2, pinhash, pinhashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
 		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
@@ -130,7 +144,7 @@ int getBalance(Message *m, uint16_t *balance)
 				*balance = sqlite3_column_int(balance_stmt, 0);
 				break;
 			} else {
-				free(texthash);
+				free(pinhash);
 				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
@@ -145,25 +159,25 @@ int getBalance(Message *m, uint16_t *balance)
 	}
 
 	sqlite3_reset(balance_stmt);
-	free(texthash);
+	free(pinhash);
 	return toReturn;
 }
 
 int insert(Message *m)
 {
 	int toReturn = 0;
-	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->pin);
-	int texthashlen = strlen(texthash);
+	char *pinhash = (char *) malloc(65);
+	hash_pin(m->pin, pinhash);
+	int pinhashlen = strlen(pinhash);
 
-	if (texthash == NULL) {
-		mlog("server.log", "Could not allocate memory for texthash.");
+	if (pinhash == NULL) {
+		mlog("server.log", "Could not allocate memory for pinhash.");
 		return 1;
 	} else if (sqlite3_bind_int(insert_stmt, 1, m->card_number) != SQLITE_OK) {
 		mlog("server.log", "Could not bind card number: %s", 
 				sqlite3_errmsg(db));
 		toReturn = 1;
-	} else if (sqlite3_bind_text(insert_stmt, 2, texthash, texthashlen, 
+	} else if (sqlite3_bind_text(insert_stmt, 2, pinhash, pinhashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
 		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
@@ -182,7 +196,7 @@ int insert(Message *m)
 			case SQLITE_ERROR:
 			case SQLITE_MISUSE:
 			default:
-				free(texthash);
+				free(pinhash);
 				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
@@ -191,7 +205,7 @@ int insert(Message *m)
 	}
 
 	sqlite3_reset(insert_stmt);
-	free(texthash);
+	free(pinhash);
 	return toReturn;
 }
 
@@ -199,12 +213,12 @@ int update(Message *m)
 {
 	int toReturn = 0;
 
-	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->pin);
-	int texthashlen = strlen(texthash);
+	char *pinhash = (char *) malloc(65);
+	hash_pin(m->pin, pinhash);
+	int pinhashlen = strlen(pinhash);
 
-	if (texthash == NULL) {
-		mlog("server.log", "Could not allocate memory for texthash.");
+	if (pinhash == NULL) {
+		mlog("server.log", "Could not allocate memory for pinhash.");
 		return 1;
 	} else if (sqlite3_bind_int(update_stmt, 1, m->sum) != SQLITE_OK) {
 		mlog("server.log", "Could not bind sum.");
@@ -212,7 +226,7 @@ int update(Message *m)
 	} else if (sqlite3_bind_int(update_stmt, 2, m->card_number) != SQLITE_OK) {
 		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
-	} else if (sqlite3_bind_text(update_stmt, 3, texthash, texthashlen, 
+	} else if (sqlite3_bind_text(update_stmt, 3, pinhash, pinhashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
 		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
@@ -228,7 +242,7 @@ int update(Message *m)
 			case SQLITE_ERROR:
 			case SQLITE_MISUSE:
 			default:
-				free(texthash);
+				free(pinhash);
 				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
@@ -237,7 +251,7 @@ int update(Message *m)
 	}
 
 	sqlite3_reset(update_stmt);
-	free(texthash);
+	free(pinhash);
 	return toReturn;
 }
 
@@ -245,18 +259,18 @@ int updateOnetimekey(Message *m)
 {
 	int toReturn = 0;
 
-	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->pin);
-	int texthashlen = strlen(texthash);
+	char *pinhash = (char *) malloc(65);
+	hash_pin(m->pin, pinhash);
+	int pinhashlen = strlen(pinhash);
 
-	if (texthash == NULL) {
-		mlog("server.log", "Could not allocate memory for texthash.");
+	if (pinhash == NULL) {
+		mlog("server.log", "Could not allocate memory for pinhash.");
 		return 1;
 	} else if (sqlite3_bind_int(update_otp_stmt, 1, m->card_number)
 			!= SQLITE_OK) {
 		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
-	} else if (sqlite3_bind_text(update_otp_stmt, 2, texthash, texthashlen, 
+	} else if (sqlite3_bind_text(update_otp_stmt, 2, pinhash, pinhashlen, 
 				SQLITE_TRANSIENT) != SQLITE_OK) {
 		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
@@ -272,7 +286,7 @@ int updateOnetimekey(Message *m)
 			case SQLITE_ERROR:
 			case SQLITE_MISUSE:
 			default:
-				free(texthash);
+				free(pinhash);
 				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
@@ -281,7 +295,7 @@ int updateOnetimekey(Message *m)
 	}
 
 	sqlite3_reset(update_otp_stmt);
-	free(texthash);
+	free(pinhash);
 	return toReturn;
 }
 
@@ -290,19 +304,19 @@ int getNextOnetimekey(Message *m)
 	mlog("server.log", "getting otk for card # %d", m->card_number);
 	int toReturn = 0;
 
-	char *texthash = NULL;
-	asprintf(&texthash, "%d", m->pin);
-	int texthashlen = strlen(texthash);
+	char *pinhash = (char *) malloc(65);
+	hash_pin(m->pin, pinhash);
+	int pinhashlen = strlen(pinhash);
 	
-	if (texthash == NULL) {
-		mlog("server.log", "Could not allocate memory for texthash.");
+	if (pinhash == NULL) {
+		mlog("server.log", "Could not allocate memory for pinhash.");
 		return 1;
 	} else if (sqlite3_bind_int(get_next_otp_stmt, 1, m->card_number)
 			!= SQLITE_OK) {
 		mlog("server.log", "Could not bind card number.");
 		toReturn = 1;
-	} else if (sqlite3_bind_text(get_next_otp_stmt, 2, texthash,
-				texthashlen, SQLITE_TRANSIENT) != SQLITE_OK) {
+	} else if (sqlite3_bind_text(get_next_otp_stmt, 2, pinhash,
+				pinhashlen, SQLITE_TRANSIENT) != SQLITE_OK) {
 		mlog("server.log", "Could not bind pin hash.");
 		toReturn = 1;
 	} else {
@@ -325,7 +339,7 @@ int getNextOnetimekey(Message *m)
 				m->onetimecode = (uint8_t) r;
 				break;
 			} else {
-				free(texthash);
+				free(pinhash);
 				mlog("server.log", "Could not step: %s", 
 						sqlite3_errmsg(db));
 				return 1;
@@ -341,6 +355,6 @@ int getNextOnetimekey(Message *m)
 	}
 
 	sqlite3_reset(get_next_otp_stmt);
-	free(texthash);
+	free(pinhash);
 	return toReturn;
 }
