@@ -21,6 +21,8 @@
 #include <stdbool.h>
 #include <sys/wait.h>
 
+#include <polarssl/net.h>
+
 #include "mlog.h"
 
 /** @brief port for normal client/server communication */

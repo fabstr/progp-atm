@@ -2,48 +2,13 @@
 
 int connectToServer(char *hostname, char *port)
 {
-	int sock;
-	struct addrinfo hints;
-	struct addrinfo *servinfo, *p;
-	int error;
-	char other_ip[INET6_ADDRSTRLEN];
-
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if ((error = getaddrinfo(hostname, port, &hints, &servinfo)) != 0) {
-		mlog("client.log", "getaddrinfo: %s\n", gai_strerror(error));
+	int sock, ret;
+	int p;
+	sscanf(port, "%d", &p);
+	if ((ret = net_connect(&sock, hostname, p)) != 0) {
+		mlog("client.log", "failed to connect");
 		return EXIT_FAILURE;
 	}
-
-	for (p=servinfo; p != NULL; p = p->ai_next) {
-		if ((sock = socket(p->ai_family, p->ai_socktype,
-						p->ai_protocol)) == -1) {
-			mlog("client.log", "client: socket: %s", strerror(errno));
-			continue;
-		}
-
-		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sock);
-			mlog("client.log", "client: socket: %s", strerror(errno));
-			continue;
-		}
-
-		break;
-	}
-
-	if (p == NULL) {
-		mlog("client.log", "client: failed to connect");
-		return EXIT_FAILURE;
-	}
-
-	inet_ntop(p->ai_family,
-			get_ipv4_or_ipv6_addr((struct sockaddr *) p->ai_addr),
-			other_ip, sizeof(other_ip));
-	mlog("client.log", "connecting to %s\n", other_ip);
-
-	freeaddrinfo(servinfo);
 
 	return sock;
 }
