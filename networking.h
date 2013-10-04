@@ -46,7 +46,7 @@ typedef enum {
 	atm_key, language_add, welcome_update,
 
 	/* control messages */
-	close_connection
+	close_connection, add_account
 } Message_ID;
 
 /**

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <sqlite3.h>
 
 #include "networking.h"
 
@@ -34,5 +35,10 @@ int changeWelcome();
  * @brief Print a help message.
  */
 void printHelp();
+
+/**
+ * @brief Add an account.
+ */
+void addAccount();
 
 #endif /* MANAGE_H */

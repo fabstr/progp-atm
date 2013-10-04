@@ -73,6 +73,13 @@ void handle_normal(int socket, Message *m)
 			m->sum = deposited;
 		}
 		break;
+	case add_account:
+		mlog("server.log", "%d was add account", socket);
+		if (insert(m) != 0) {
+			fprintf(stderr, "Could not add account\n");
+			*m = nomsg;
+		} 
+		break;
 	default:
 		*m = nomsg;
 		break;
@@ -94,6 +101,7 @@ void handle_connection(int socket)
 		case balance:
 		case withdraw:
 		case deposit:
+		case add_account:
 			mlog("server.log", "normal message %d", socket);
 			handle_normal(socket, m);
 			break;

@@ -1,5 +1,10 @@
 #include "manage.h"
 
+#define DBPATH "db.sqlite"
+
+char *insert_string = "INSERT INTO accounts (cardnumber, pinhash, balance) "
+	"VALUES (?1, ?2, ?3)";
+
 #define STRING_COUNT 20
 char *queryStrings[STRING_COUNT] = {
 	"Language code: ",
@@ -28,13 +33,15 @@ int main(int argc, char **argv)
 	while (1) {
 		char *cmd = readline(">> ");
 		if (strcmp(cmd, "quit") == 0) {
+			free(cmd);
 			break;
 		} else if (strcmp(cmd, "add language") == 0) {
 			addLanguage();
 		} else if (strcmp(cmd, "change welcome") == 0) {
 			changeWelcome();
-		} else if ((strcmp(cmd, "help") == 0) || 
-				strcmp(cmd, "'help'") == 0) {
+		} else if (strcmp(cmd, "add account") == 0) {
+			addAccount();
+		} else if (strcmp(cmd, "help") == 0) {
 			printHelp();
 		}
 		free(cmd);
@@ -45,7 +52,15 @@ int main(int argc, char **argv)
 
 void printHelp()
 {
-	printf("There is no help.\n");
+	printf("+----------------+\n");
+	printf("| Commands:      |\n");
+	printf("+----------------+\n");
+	printf("| add language   |\n");
+	printf("| change welcome |\n");
+	printf("| add account    |\n");
+	printf("| quit           |\n");
+	printf("| help           |\n");
+        printf("+----------------+\n");
 }
 
 int addLanguage()
@@ -136,4 +151,40 @@ int changeWelcome()
 
 	close(socket);
 	return toReturn;
+}
+
+void addAccount()
+{
+	mlog("manage.log", "adding account");
+	Message m = {
+		.message_id = add_account,
+		.sum = 0,
+	};
+	
+	/* read the properties */
+	mlog("manage.log", "reading properties");
+	char *hostname, *pin, *card_number;
+	hostname = readline("The server host: ");
+	card_number = readline("Card number: ");
+	pin = readline("Pin: ");
+
+	/* convert to integers */
+	mlog("manage.log", "converting to integers");
+	sscanf(pin, "%d", (int *) &m.pin);
+	sscanf(card_number, "%d", (int *) &m.card_number);
+
+	/* connect to the server and send the message */
+	mlog("manage.log", "sending message");
+	int socket = connectToServer(hostname, PORT);
+	int sent = sendMessage(socket, &m);
+	mlog("manage.log", "sent %d bytes", sent);
+	close(socket);
+
+	/* free the strings */
+	mlog("manage.log", "freeing memory");
+	free(hostname);
+	free(pin);
+	free(card_number);
+
+	mlog("manage.log", "account added");
 }
