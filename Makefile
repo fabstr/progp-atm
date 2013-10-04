@@ -24,7 +24,7 @@ BINS = server client manage
 CFLAGS = -g -O0 -Wall -Wno-deprecated -D_GNU_SOURCE $(LOGGING)
 
 # the libraries used
-LDLIBS = -lpthread -lreadline -lsqlite3 -lcrypto -lssl
+LDLIBS = -lpthread -lreadline -lsqlite3 -lpolarssl
 
 # the c compiler, set to gcc on linux and clang on os x
 CC = clang
