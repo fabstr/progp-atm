@@ -82,11 +82,19 @@ clean:
 test: all
 	rm -f server.log client.log
 	clear
-	make
-	./server 1234 &
+	./server &
 	./client localhost 
 	killall server
 	@echo There is info in server.log and client.log
+
+test-manage: all
+	rm -f server.log client.log manage.log
+	clear
+	./server &
+	./manage
+	killall server
+	@echo There is info in server.log, client.log and manage.log
+
 
 docs: Doxyfile
 	doxygen Doxyfile
