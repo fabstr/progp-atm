@@ -1,60 +1,52 @@
-The traffic message si defined as following:
+The traffic message is defined as following:
 
-Byte number: 0           1              2,3   4,5        6,7
+Byte number: 0            1              2,3   4,5        6,7
             +------------+--------------+-----+----------+-------------+
             | message id | one time key | sum | pin code | card number |
             +------------+--------------+-----+----------+-------------+
 
-In more detail, NetworkMessage is the message that is sent over the network:
-    typedef struct {
-	    uint8_t message_id;
-	    uint8_t onetimecode;
-	    uint16_t sum;
-	    uint16_t pin;
-	    uint16_t card_number;
-    } NetworkMessage;
+Every integer longer than one byte (sum, pin code and card number) is sent in 
+network byte order.
 
-Every integer longer than one byte is sent in network byte order.
+The server listens on port 4567 for traffic messages and each client listens 
+on port 4568 for upgrade messages.
 
 Traffic messages:
 There are four traffic messages and the corresponding message_id value:
 
-+----------+------------+
-| Name     | message_id |
-+----------+------------+
-| no       | 0          |
-| balance  | 1          |
-| withdraw | 2          |
-| deposit  | 3          |
-+----------+------------+ 
++------------------+------------+
+| Name             | message_id |
++------------------+------------+
+| no               | 0          |
+| balance          | 1          |
+| withdraw         | 2          |
+| deposit          | 3          |
+| close_connection | 7          |
++------------------+------------+ 
 
 No:
-message_id is set to 0, the other fields are ignored by the client and the
-server. A no message is sent when something is not allowed, for example whilst
-the pin code is incorrect or when the user is trying to withdraw too much money
-from the account.
+No is sent by the server when the client's request is not allowed. The fields 
+other than message_id are ignored by the client.
 
 Balance:
-Balance is sent when the user wants to see the balance on the account.  
-message_id is 1 and pin and card_number is set to the correct values. If the 
-pin/card_number values are correct, the server replies with a balance message
-with sum indicating the balance on the account. If the pin/card_number values
-are not correct, the server replies with a no message.
-
+Balance is sent by the client when requesting the balance for an account. The
+pin code and card number must be specified in the message. If an account with
+the specified pin/card number exists, the server replies with a balance message
+with the accounts balance set in sum.
 
 Withdraw:
 Is sent when the user wants to withdraw money. The pin/card_number values are
-set by the client and message_id is 3. The amount the user wants to withdraw is
-set in sum. If the account is not being overdrawn, the server replies with the
-same message that was sent by the client. Else a no message is sent.
+set by the client. The amount the user wants to withdraw is set in sum. If the 
+account is not being overdrawn, the server replies with the same message that 
+was sent by the client. Else a no message is sent.
 
 Deposit:
-Sent when the user wants to deposit money. The client sets pin/card_number/sum.
+Sent when the user wants to deposit money. The client sets pin/card number/sum.
 The server updates the account and responds with the same message. On error a 
-no message is sent.
+no message is sent (or the pin/card number was invalid).
 
 Update messages:
-There are three update messages (all are based on NetworkMessage):
+These are the update messages:
 
 +----------------+------------+----------------+
 | Name           | message_id | direction      |
@@ -62,46 +54,82 @@ There are three update messages (all are based on NetworkMessage):
 | atm_key        | 4          | client->server |
 | language_add   | 5          | manage->client |
 | welcome_update | 6          | manage->client |
+| add_account    | 8          | manage->server |
 +----------------+------------+----------------+
 
-Additionally there is a NetworkString message: First a single byte is sent with
-the length of the following string, then in a second package the string data is
-sent.
+atm_key is not used in this protocol version.
+
+A network string is sent in the following way:
+  1. Send a single byte specifying the length of the string to send (excluding
+     the null byte).
+  2. Send the buffer holding the string (without the null byte).
 
 Language_add:
-message_id is set to 4 and sum is set to the number of following translation
-strings. Then that number of network strings are sent in the order the strings
-appear in queryStrings:
-    #define STRING_COUNT 20
-    char *queryStrings[STRING_COUNT] = {
-	    "Language code: ",
-	    "Language name: ",
-	    "Balance command: ",
-	    "Deposit command: ",
-	    "Withdraw command: ",
-	    "Help command: ",
-	    "Unknown command: ",
-	    "Balance error: ",
-	    "Dedposit error: ",
-	    "Withdraw error: ",
-	    "Welcome message: ",
-	    "Balance message: ",
-	    "Desposit message: ",
-	    "Withdraw message: ",
-	    "Help message: ",
-	    "Enter amount requst: ",
-	    "Enter one time key request: ",
-	    "Enter card number request: ",
-	    "Enter pin request: ",
-    };
-The client is the to expect (currently) 20 network strings.
+The manage program sends a language_add message to a client to add a langauge
+to the client gui. In the sum field the manage program specifies how many 
+network strings the client is to expect.
+        The strings are sent in this order:
+	1. "Language code"
+	2. "Language name"
+	3. "Balance command"
+	4. "Deposit command"
+	5. "Withdraw command"
+	6. "Help command"
+	7. "Unknown command"
+	8. "Balance error"
+	9. "Dedposit error"
+	10. "Withdraw error"
+	11. "Welcome message"
+	12. "Balance message"
+	13. "Desposit message"
+	14. "Withdraw message"
+	15. "Help message"
+	16. "Enter amount requst"
+	17. "Enter one time key request"
+	18. "Enter card number request"
+	19. "Enter pin request"
 
 Welcome_update:
-message_id is set to 6 and sum the number of following network strings. The 
-first network string tells the client which language code to update the welcome
-message on, the second network string defines the new welcome message.
+Sum is set to the number of following network strings, which should be 2. First 
+a network string is sent with the language code, then a network string is sent
+with the actual message.
 
-Scenario when asking for balance:
+Add_account:
+The new account's pin code and card number is specified in the add_account 
+message which is sent to the server.
+
+Scenarios:
++----------------+-----------------------+-----------------------+--------------------------+                       
+| Sent by client | The server checks the | The server's response | What the client does     |                      
+|                | request is allowed    |                       |                          |                    
++----------------+-----------------------+-----------------------+--------------------------+                    
+| Balance        | yes                   | balance with sum set  | prints the balance       |                         
+|                | no                    | a no message          |  tell the user something |                         
++----------------+-----------------------+-----------------------+--------------------------+                         
+| Withdraw       | yes                   | the same message      | gives the user money     |                         
+|                | no                    | a no message          | tell the user something  |                         
++----------------+-----------------------+--------------------------------------------------+                         
+| Deposit        | yes                   | the same message      | tell the user something  |                         
+|                | no                    | a no message          | tell the user something  |                         
++----------------+-----------------------+--------------------------------------------------+                         
+
+Update messages:
+
+Manage -> client:
+1. change_welcome:
+   a. Send a change_welcome message
+   b. Send a network string with the language code
+   c. Send the new welcome message
+2. add_language:
+   a. Send a language_add message
+   b. Send the network strings
+
+Manage -> server:
+1. add_account:
+   a. Send an add_account to the server.
+
+
+Flow chart for the balance message:
 
     Client                    Server                      Server
 +------------------+       +-----------+            +------------------+
