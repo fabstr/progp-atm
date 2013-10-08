@@ -12,8 +12,10 @@ The server listens on port 4567 for traffic messages and each client listens
 on port 4568 for upgrade messages.
 
 Traffic messages:
-There are four traffic messages and the corresponding message_id value:
+Every traffic message have a specific message id and uses the fields in various 
+ways.
 
+These are the traffic messages and their message ids:
 +------------------+------------+
 | Name             | message_id |
 +------------------+------------+
@@ -50,7 +52,6 @@ Sent by the client when the server should close the socket.
 
 Update messages:
 These are the update messages:
-
 +----------------+------------+----------------+
 | Name           | message_id | direction      |
 +----------------+------------+----------------+
