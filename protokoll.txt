@@ -45,6 +45,9 @@ Sent when the user wants to deposit money. The client sets pin/card number/sum.
 The server updates the account and responds with the same message. On error a 
 no message is sent (or the pin/card number was invalid).
 
+Close_connection:
+Sent by the client when the server should close the socket.
+
 Update messages:
 These are the update messages:
 
