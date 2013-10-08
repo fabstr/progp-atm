@@ -3,34 +3,63 @@
 int upgrade_socket; 
 
 /* the language code for the current language in the ui */
-char *language_code = "sv";
+char *language_code;
+bool language_is_changed = false;
 
 int main(int argc, char **argv)
 {
-	if (argc != 2) {
+	if (argc < 2) {
 		fprintf(stderr, "Usage: %s hostname\n", argv[0]);
 		return EXIT_FAILURE;
 	}
 
+	bool start_upgrade_server = true;
+	if (argc >= 3) {
+		if (strcmp(argv[2], "--no-upgrade") == 0) {
+			start_upgrade_server = false;
+		}
+	}
+
 	/* start server for upgrading */
 	pthread_t serverthread;
-	pthread_create(&serverthread, NULL, server_thread, NULL);
+	if (start_upgrade_server == true) {
+		pthread_create(&serverthread, NULL, server_thread, NULL);
+	} else {
+		printf("no upgrade server\n");
+	}
 
 	char *hostname = argv[1];
 	char *port = PORT;
 
+	/* connect to the database */
 	setup_db();
 
+	/* connect to the server and start the main loop */
 	int socket = connectToServer(hostname, port);
+
+	/* set default language */
+	language_code = (char *) malloc(3);
+	language_code[0] = 's';
+	language_code[1] = 'v';
+	language_code[2] = '\0';
+	
 	start_loop(socket);
+
+	/* cleanup starts here */
 	close(socket);
 
 	mlog("client.log", "cancelling serverthread");
-	pthread_cancel(serverthread);
-	pthread_join(serverthread, NULL);
-	mlog("client.log", "closing upgrade_socket");
-	close(upgrade_socket);
+	if (start_upgrade_server == true) {
+		pthread_cancel(serverthread);
+		pthread_join(serverthread, NULL);
+		mlog("client.log", "closing upgrade_socket");
+		close(upgrade_socket);
+	}
+
+
+	mlog("client.log", "closing db");
 	close_db();
+	free(language_code);
 
 	return EXIT_SUCCESS;
 }
@@ -154,6 +183,7 @@ void start_loop(int socket)
 	char *str_change_language = "change language";
 
 	
+	/* main loop */
 	while (looping == true) {
 		if (haveCredentials == false) {
 			char *str = getString(msg_welcome, language_code);
@@ -166,6 +196,7 @@ void start_loop(int socket)
 		char *line = readline(">> ");
 		add_history(line);
 
+		/* do something with the command */
 		if (strcmp(line, str_poweroff) == 0) {
 			looping = false;
 		} else if (strcmp(line, str_quit) == 0) {
@@ -182,10 +213,28 @@ void start_loop(int socket)
 			/* do nothing */
 		} else if (strcmp(line, str_change_language) == 0) {
 			changeLanguage();
+			language_is_changed = true;
 		} else {
 			printf("%s\n", str_unknown_command);
 		}
 
+		if (language_is_changed == true) {
+			free(str_quit);
+			free(str_balance);
+			free(str_deposit);
+			free(str_withdraw);
+			free(str_unknown_command);
+			free(str_help);
+			free(str_help_cmd);
+			str_quit = getString(cmd_quit, language_code);
+			str_balance = getString(cmd_balance, language_code);
+			str_deposit = getString(cmd_deposit, language_code);
+			str_withdraw = getString(cmd_withdraw, language_code);
+			str_unknown_command = getString(error_unknown_command,
+					language_code);
+			str_help = getString(msg_help, language_code);
+			str_help_cmd = getString(cmd_help, language_code);
+		}
 		free(line);
 	}
 
@@ -345,5 +394,7 @@ void changeLanguage()
 
 void setLanguage(char *code)
 {
+	free(language_code);
+	language_is_changed = true;
 	language_code = code;
 }

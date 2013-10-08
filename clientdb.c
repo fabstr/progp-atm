@@ -104,6 +104,7 @@ int setup_db()
 
 int close_db()
 {
+	mlog("client.log", "closing db");
 	sqlite3_finalize(create_table_stmt);
 	sqlite3_finalize(get_string_stmt);
 	sqlite3_finalize(insert_stmt);
