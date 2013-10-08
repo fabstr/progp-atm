@@ -116,6 +116,12 @@ int addLanguage()
 int changeWelcome()
 {
 	char *msg = readline("New welcome message: ");
+	while (strlen(msg) > 80) {
+		printf("The message is too long.\n");
+		free(msg);
+		msg = readline("New welcome message: ");
+	}
+
 	char *lang = readline("Language code: ");
 	char *host = readline("Host: ");
 
