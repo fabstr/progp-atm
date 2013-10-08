@@ -12,25 +12,58 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	char *hostname = argv[1];
+
 	/* start server for upgrading */
 	pthread_t serverthread;
 	pthread_create(&serverthread, NULL, server_thread, NULL);
 
-	char *hostname = argv[1];
-	char *port = PORT;
-
+	/* setup the sqlite connection */
 	setup_db();
 
-	int socket = connectToServer(hostname, port);
-	start_loop(socket);
-	close(socket);
+	/* connect to the server */
+	int socket = connectToServer(hostname, PORT);
 
+	/* variables for ssl */
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+	x509_crt x509;
+	x509_crt_init(&x509);
+
+	/* initialize polarssl */
+	init_ssl(&ssl, &entropy, &ctr_drbg, &socket, SSL_IS_CLIENT);
+
+	/* load certificates */
+	int res;
+	if ((res = x509_crt_parse_file(&x509, "ca.crt")) != 0) {
+		fprintf(stderr, "Fatal error: could not load ca.crt (%d)\n", 
+				res);
+	} else if ((res = x509_crt_parse_file(&x509, "client.crt")) 
+			!= 0) {
+		fprintf(stderr, "Fatal error: couldn't load client.crt"
+				" (%d)\n", res);
+	} 
+	
+	/* if there was no error loading the certificates, run the loop */
+	if (res == 0) {
+		start_loop(&ssl);
+	}
+
+	/* free ssl stuff close the socket and the database connection */
+	ssl_free(&ssl);
+	net_close(socket);
+	close_db();
+	x509_crt_free(&x509);
+
+	/* cancel the upgrade thread */
 	mlog("client.log", "cancelling serverthread");
 	pthread_cancel(serverthread);
 	pthread_join(serverthread, NULL);
+
+	/* close the upgrade socket */
 	mlog("client.log", "closing upgrade_socket");
 	close(upgrade_socket);
-	close_db();
 
 	return EXIT_SUCCESS;
 }
@@ -42,24 +75,24 @@ void *server_thread(void *arg)
 	return NULL;
 }
 
-void upgrade_handle(int socket)
+void upgrade_handle(ssl_context *ssl)
 {
-	mlog("client.log", "got connection (%d)", socket);
+	mlog("client.log", "got connection");
 	extern pthread_mutex_t dbmutex;
 
 	Message m;
-	getMessage(socket, &m);
+	getMessage(ssl, &m);
 	switch (m.message_id) {
 	case welcome_update:
 		mlog("client.log", "got upgrade welcome");
 		pthread_mutex_lock(&dbmutex);
-		update_welcome(socket, &m);
+		update_welcome(ssl, &m);
 		pthread_mutex_unlock(&dbmutex);
 		break;
 	case language_add:
 		mlog("client.log", "got add language");
 		pthread_mutex_lock(&dbmutex);
-		add_language(socket, &m);
+		add_language(ssl, &m);
 		pthread_mutex_unlock(&dbmutex);
 		break;
 	default:
@@ -68,7 +101,7 @@ void upgrade_handle(int socket)
 	}
 }
 
-void update_welcome(int socket, Message *m)
+void update_welcome(ssl_context *ssl, Message *m)
 {
 	int nNetworkStrings = m->sum;
 	int nStringsGotten = 0;
@@ -78,7 +111,7 @@ void update_welcome(int socket, Message *m)
 	mlog("client.log", "nNetworkStrings = %d", nNetworkStrings);
 
 	for (i=0; i<nNetworkStrings; i++) {
-		if (getNetworkString(socket, &(strings[i])) != 0) {
+		if (getNetworkString(ssl, &(strings[i])) != 0) {
 			mlog("client.log", "Could not get network string: %s\n",
 					strerror(errno));
 		} else {
@@ -110,14 +143,14 @@ void update_welcome(int socket, Message *m)
 	}
 }
 
-void add_language(int socket, Message *m)
+void add_language(ssl_context *ssl, Message *m)
 {
 	int nNetworkStrings = m->sum;
 	int i;
 	NetworkString strings[nNetworkStrings];
 
 	for (i=0; i<nNetworkStrings; i++) {
-		if (getNetworkString(socket, &(strings[i])) != 0) {
+		if (getNetworkString(ssl, &(strings[i])) != 0) {
 			mlog("client.log", "Could not get network string: %s\n",
 					strerror(errno));
 		}
@@ -135,7 +168,7 @@ void add_language(int socket, Message *m)
 	}
 }
 
-void start_loop(int socket)
+void start_loop(ssl_context *ssl)
 {
 	Credentials c;
 	bool haveCredentials = false;
@@ -171,11 +204,11 @@ void start_loop(int socket)
 		} else if (strcmp(line, str_quit) == 0) {
 			haveCredentials = false;
 		} else if (strcmp(line, str_balance) == 0) {
-			show_balance(socket, &c);
+			show_balance(ssl, &c);
 		} else if (strcmp(line, str_deposit) == 0) {
-			deposit_money(socket, &c);
+			deposit_money(ssl, &c);
 		} else if (strcmp(line, str_withdraw) == 0) {
-			withdraw_money(socket, &c);
+			withdraw_money(ssl, &c);
 		} else if (strcmp(line, str_help_cmd) == 0) {
 			printf("%s\n", str_help);
 		} else if (strcmp(line, "") == 0) {
@@ -190,7 +223,7 @@ void start_loop(int socket)
 	}
 
 	Message m = {.message_id = close_connection};
-	sendMessage(socket, &m);
+	sendMessage(ssl, &m);
 
 	/* free the command strings */
 	free(str_quit);
@@ -202,7 +235,7 @@ void start_loop(int socket)
 	free(str_help_cmd);
 }
 
-void show_balance(int socket, Credentials *c)
+void show_balance(ssl_context *ssl, Credentials *c)
 {
 	Message *m = (Message *) malloc(sizeof(Message));
 	m->message_id = balance;
@@ -212,8 +245,8 @@ void show_balance(int socket, Credentials *c)
 	m->onetimecode = 0;
 
 	Message answer;
-	sendMessage(socket, m);
-	getMessage(socket, &answer);
+	sendMessage(ssl, m);
+	getMessage(ssl, &answer);
 
 	if (answer.message_id != balance) {
 		char *str = getString(error_balance, language_code);
@@ -229,7 +262,7 @@ void show_balance(int socket, Credentials *c)
 	free(m);
 }
 
-void deposit_money(int socket, Credentials *c)
+void deposit_money(ssl_context *ssl, Credentials *c)
 {
 	char *str1 = getString(rqst_enter_amount, language_code);
 	uint16_t amount = askForInteger(str1);
@@ -244,8 +277,8 @@ void deposit_money(int socket, Credentials *c)
 	};
 	
 	Message answer;
-	sendMessage(socket, &m);
-	getMessage(socket, &answer);
+	sendMessage(ssl, &m);
+	getMessage(ssl, &answer);
 
 	if (answer.message_id != deposit) {
 		char *str2 = getString(error_deposit, language_code);
@@ -258,7 +291,7 @@ void deposit_money(int socket, Credentials *c)
 	}
 }
 
-void withdraw_money(int socket, Credentials *c)
+void withdraw_money(ssl_context *ssl, Credentials *c)
 {
 	char *str1 = getString(rqst_enter_amount, language_code);
 	uint16_t amount = askForInteger(str1);
@@ -277,8 +310,8 @@ void withdraw_money(int socket, Credentials *c)
 	};
 	
 	Message answer;
-	sendMessage(socket, &m);
-	getMessage(socket, &answer);
+	sendMessage(ssl, &m);
+	getMessage(ssl, &answer);
 
 	if (answer.message_id != withdraw) {
 		char *str3 = getString(error_withdraw, language_code);

@@ -22,11 +22,11 @@ void *get_ipv4_or_ipv6_addr(struct sockaddr *socketaddress)
 	return &(((struct sockaddr_in6 *) socketaddress)->sin6_addr);
 }
 
-int getMessage(int connection, Message *target)
+int getMessage(ssl_context *ssl, Message *target)
 {
 	NetworkMessage nm;
-	int received;
-	if ((received = recv(connection, &nm, sizeof(NetworkMessage), 0)) == -1) {
+	int read = ssl_read(ssl, (unsigned char *) &nm, sizeof(NetworkMessage));
+	if (read <= 0) {
 		return -1;
 	}
 
@@ -38,7 +38,7 @@ int getMessage(int connection, Message *target)
 	return 0;
 }
 
-size_t sendMessage(int connection, Message *msg)
+size_t sendMessage(ssl_context *ssl, Message *msg)
 {
 	NetworkMessage toSend;
 	memset(&toSend, 0, sizeof(NetworkMessage));
@@ -51,7 +51,8 @@ size_t sendMessage(int connection, Message *msg)
 	toSend.onetimecode =  msg->onetimecode;
 	toSend.card_number = htons(msg->card_number);
 
-	int toReturn = send(connection, &toSend, sizeof(NetworkMessage), 0);
+	int toReturn = ssl_write(ssl, (unsigned char *) &toSend, 
+			sizeof(NetworkMessage));
 
 	return toReturn;
 }
@@ -65,25 +66,25 @@ void printMessage(Message *m)
 	printf("card_number: %d\n", m->card_number);
 }
 
-int sendNetworkString(int socket, char *string)
+int sendNetworkString(ssl_context *ssl, char *string)
 {
 	uint8_t length = strlen(string);
-	if (send(socket, &length, 1, 0) <= 0) {
+	if (ssl_write(ssl, &length, 1) <= 0) {
 		return -1;
-	} else if (send(socket, string, length, 0) <= 0) {
+	} else if (ssl_write(ssl, (unsigned char *) string, length) <= 0) {
 		return -1;
 	}
 
 	return 0;
 }
 
-int getNetworkString(int socket, NetworkString *nstr)
+int getNetworkString(ssl_context *ssl, NetworkString *nstr)
 {
 	mlog("server.log", "getNetworkString");
 
 	/* first receive the length */
 	uint8_t length;
-	if (recv(socket, &length, 1, 0) == -1) {
+	if (ssl_read(ssl, &length, 1) == -1) {
 		return 1;
 	}
 
@@ -92,7 +93,8 @@ int getNetworkString(int socket, NetworkString *nstr)
 	/* then receive the string */
 	nstr->string = (char *) malloc(length + 1);
 	size_t received;
-	if ((received = recv(socket, nstr->string, length, 0)) == -1) {
+	if ((received = ssl_read(ssl, (unsigned char *) nstr->string, length)) 
+			== -1) {
 		free(nstr->string);
 		return 1;
 	}
@@ -106,7 +108,7 @@ int getNetworkString(int socket, NetworkString *nstr)
 	return 0;
 }
 
-int start_server(char *port, void(*handle)(int), int *sock)
+int start_server(char *port, void(*handle)(ssl_context*), int *sock)
 {
 	int new_connection;
 
@@ -188,16 +190,17 @@ int start_server(char *port, void(*handle)(int), int *sock)
 
 		inet_ntop(other_address.ss_family, 
 				get_ipv4_or_ipv6_addr((struct sockaddr *) 
-				&other_address), other_ip, sizeof(other_ip));
-		mlog("server.log", "got connection (%d) from %s", new_connection, 
-			other_ip);
+				&other_address),
+				other_ip,
+				sizeof(other_ip));
+		mlog("server.log", "got connection (%d) from %s",
+				new_connection, other_ip);
 
 		if (!fork()) {
 			/* child process */
-			mlog("server.log", "fork: calling handle");
+			mlog("server.log", "fork: processing");
 			close(*sock);
-			handle(new_connection);
-			close(new_connection);
+			process_client(new_connection, handle);
 			return EXIT_SUCCESS;
 		}
 
@@ -206,6 +209,64 @@ int start_server(char *port, void(*handle)(int), int *sock)
 
 	close(*sock);
 	return EXIT_SUCCESS;
+}
+
+void ssl_debug(void *ctx, int level, const char *str)
+{
+	((void)level);
+	fprintf((FILE *) ctx, "%s", str);
+	fflush((FILE *) ctx);
+}
+
+int init_ssl(ssl_context *ssl, entropy_context *entropy, 
+		ctr_drbg_context *ctr_drbg, int *sockfd, int endpoint)
+{
+	/* initialize ssl */
+	init_ctr(entropy, ctr_drbg);
+	memset(ssl, 0, sizeof(ssl_context));
+	int ret;
+	if ((ret = ssl_init(ssl)) != 0) {
+		mlog("server.log", "fatal error: ssl_init returned %d", ret);
+		return ret;
+	}
+	ssl_set_endpoint(ssl, endpoint);
+	ssl_set_authmode(ssl, SSL_VERIFY_NONE);
+	ssl_set_rng(ssl, ctr_drbg_random, ctr_drbg);
+	ssl_set_dbg(ssl, ssl_debug, stderr);
+	ssl_set_bio(ssl, net_recv, sockfd, net_send, sockfd);
+	ssl_set_ciphersuites(ssl, ssl_list_ciphersuites());
+
+	return 0;
+}
+
+void process_client(int sockfd, void(*handle)(ssl_context*))
+{
+	/* variables for ssl */
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+
+	/* initialize */
+	init_ssl(&ssl, &entropy, &ctr_drbg, &sockfd, SSL_IS_SERVER);
+
+	/* call the handle */
+	handle(&ssl);
+
+	/* free ssl and close the socket */
+	ssl_free(&ssl);
+	close(sockfd);
+}
+
+int init_ctr(entropy_context *entropy, ctr_drbg_context *ctr_drbg)
+{
+	entropy_init(entropy);
+	int ret = ctr_drbg_init(ctr_drbg, entropy_func, entropy, NULL, 0);
+	if (ret != 0) {
+		mlog("ssl.log", "ctr_drbg_init returned %d", ret);
+		return ret;
+	}
+
+	return 0;
 }
 
 void sigchld_handler(int s)

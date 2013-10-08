@@ -26,7 +26,7 @@ SERVERPATH = $(PROGRAMS)/server
 CLIENTPATH = $(PROGRAMS)/client
 MANAGEPATH = $(PROGRAMS)/manage
 
-OPENSSLFILES = ca.key ca.crt index serial 0*.pem
+OPENSSLFILES = ca.key ca.crt index* serial* 0*.pem
 
 CFLAGS = -g -O0 -Wall -D_GNU_SOURCE $(LOGGING)
 
@@ -65,7 +65,8 @@ run-client-valgrind: client client.dSYM
 	valgrind $(VLGDFLAGS) ./client localhost
 
 wc:
-	@wc -l *.c *.h | grep -i -v -e total -e sqlite3.h -e sqlite3.c | awk '{print $$1}' | \
+	@wc -l *.c *.h | grep -i -v -e total -e sqlite3.h -e sqlite3.c | \
+		awk '{print $$1}' | \
 		awk '{sum += $$1} END {print sum " total"}'
 
 clean:

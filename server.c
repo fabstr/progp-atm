@@ -2,12 +2,12 @@
 
 #define BACKLOG 10
 
-void handle_upgrade(int socket, Message *m)
+void handle_upgrade(ssl_context *ssl, Message *m)
 {
 	/* don't do anything */
 }
 
-void handle_normal(int socket, Message *m)
+void handle_normal(ssl_context *ssl, Message *m)
 {
 	uint16_t account_balance = 0;
 	Message nomsg = {};
@@ -20,11 +20,11 @@ void handle_normal(int socket, Message *m)
 	switch (m->message_id) {
 	case no:
 		/* do nothing */
-		mlog("server.log", "%d was no", socket);
+		mlog("server.log", "msg was no");
 		return;
 		break;
 	case balance:
-		mlog("server.log", "%d was balance", socket);
+		mlog("server.log", "msg was balance");
 		if (getBalance(m, &account_balance) != 0) {
 			mlog("server.log", "Could not get balance.");
 			*m = nomsg;
@@ -34,7 +34,7 @@ void handle_normal(int socket, Message *m)
 		}
 		break;
 	case withdraw:
-		mlog("server.log", "%d was withdrawal", socket);
+		mlog("server.log", "msg was withdrawal");
 		if (getBalance(m, &account_balance) != 0) {
 			fprintf(stderr, "Could not get balance.\n");
 			*m = nomsg;
@@ -59,7 +59,7 @@ void handle_normal(int socket, Message *m)
 		}
 		break;
 	case deposit:
-		mlog("server.log", "%d was deposit", socket);
+		mlog("server.log", "msg was deposit");
 		if (getBalance(m, &account_balance) != 0) {
 			fprintf(stderr, "Could not get balance.\n");
 			*m = nomsg;
@@ -74,7 +74,7 @@ void handle_normal(int socket, Message *m)
 		}
 		break;
 	case add_account:
-		mlog("server.log", "%d was add account", socket);
+		mlog("server.log", "msg was add account");
 		if (insert(m) != 0) {
 			fprintf(stderr, "Could not add account\n");
 			*m = nomsg;
@@ -85,37 +85,37 @@ void handle_normal(int socket, Message *m)
 		break;
 	}
 
-	sendMessage(socket, m);
+	sendMessage(ssl, m);
 }
 
-void handle_connection(int socket)
+void handle_connection(ssl_context *ssl)
 {
-	mlog("server.log", "handling connection %d", socket);
+	mlog("server.log", "handling connection");
 	Message *m = (Message *) malloc(sizeof(Message));
 	memset(m, 0, sizeof(Message));
 
 	while (m->message_id != close_connection) {
-		getMessage(socket, m);
+		getMessage(ssl, m);
 
 		switch (m->message_id) {
 		case balance:
 		case withdraw:
 		case deposit:
 		case add_account:
-			mlog("server.log", "normal message %d", socket);
-			handle_normal(socket, m);
+			mlog("server.log", "normal message");
+			handle_normal(ssl, m);
 			break;
 		case atm_key:
 		case language_add:
 		case welcome_update:
-			mlog("server.log", "upgrade message %d", socket);
-			handle_upgrade(socket, m);
+			mlog("server.log", "upgrade message");
+			handle_upgrade(ssl, m);
 			break;
 		case close_connection :
 			break;
 		default:
 			m->message_id = no;
-			sendMessage(socket, m);
+			sendMessage(ssl, m);
 			break;
 		}
 	}

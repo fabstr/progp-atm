@@ -74,6 +74,15 @@ int addLanguage()
 	/* we're done with host */
 	free(host);
 
+	/* variables for ssl */
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+
+	/* initialize */
+	init_ssl(&ssl, &entropy, &ctr_drbg, &socket, SSL_IS_SERVER);
+
+
 	/*
 	 * send a language_add message and tell the client we are sending
 	 * STRING_COUNT network strings
@@ -85,7 +94,7 @@ int addLanguage()
 
 
 	mlog("manage.log", "entering addLanguage loop");
-	sendMessage(socket, &m);
+	sendMessage(&ssl, &m);
 
 	/*
 	 * for each string in queryStrings, ask for it and send the result to
@@ -97,7 +106,7 @@ int addLanguage()
 		if (str == NULL) {
 			fprintf(stderr, "Fatal error: could not read string.\n");
 			return 1;
-		} else if (sendNetworkString(socket, str) != 0) {
+		} else if (sendNetworkString(&ssl, str) != 0) {
 			fprintf(stderr, "Could not send network string: %s\n", 
 					strerror(errno));
 			free(str);
@@ -107,7 +116,8 @@ int addLanguage()
 		free(str);
 	}
 
-	close(socket);
+	ssl_free(&ssl);
+	net_close(socket);
 	mlog("manage.log", "addLanguage sent");
 
 	return 0;
@@ -120,6 +130,15 @@ int changeWelcome()
 	char *host = readline("Host: ");
 
 	int socket = connectToServer(host, UPGRPORT);
+
+	/* variables for ssl */
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+
+	/* initialize */
+	init_ssl(&ssl, &entropy, &ctr_drbg, &socket, SSL_IS_SERVER);
+
 	int toReturn = 0;
 
 	mlog("manage.log", "sending welcome update");
@@ -133,15 +152,15 @@ int changeWelcome()
 		.sum = 2,
 	};
 
-	if (sendMessage(socket, &m) == -1) {
+	if (sendMessage(&ssl, &m) == -1) {
 		mlog("manage.log", "Could not send language_add message: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, lang) == -1) {
+	} else if (sendNetworkString(&ssl, lang) == -1) {
 		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
-	} else if (sendNetworkString(socket, msg) == -1) {
+	} else if (sendNetworkString(&ssl, msg) == -1) {
 		mlog("manage.log", "Could not send network string: %s\n", 
 				strerror(errno));
 		toReturn = 1;
@@ -149,7 +168,7 @@ int changeWelcome()
 		mlog("manage.log", "welcome update sent");
 	}
 
-	close(socket);
+	net_close(socket);
 	return toReturn;
 }
 
@@ -176,9 +195,18 @@ void addAccount()
 	/* connect to the server and send the message */
 	mlog("manage.log", "sending message");
 	int socket = connectToServer(hostname, PORT);
-	int sent = sendMessage(socket, &m);
+
+	/* variables for ssl */
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+
+	/* initialize */
+	init_ssl(&ssl, &entropy, &ctr_drbg, &socket, SSL_IS_SERVER);
+
+	int sent = sendMessage(&ssl, &m);
 	mlog("manage.log", "sent %d bytes", sent);
-	close(socket);
+	net_close(socket);
 
 	/* free the strings */
 	mlog("manage.log", "freeing memory");

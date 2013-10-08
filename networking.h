@@ -22,6 +22,9 @@
 #include <sys/wait.h>
 
 #include <polarssl/net.h>
+#include <polarssl/ssl.h>
+#include <polarssl/entropy.h>
+#include <polarssl/ctr_drbg.h>
 
 #include "mlog.h"
 
@@ -118,6 +121,13 @@ typedef struct {
 	uint8_t otp;
 } Credentials;
 
+typedef struct {
+	entropy_context entropy;
+	ctr_drbg_context ctr_drbg;
+	ssl_context ssl;
+	char *pers;
+} SSLData;
+
 /**
  * @brief Chose the correct socket address, for IPv4 or IPv6.
  * @param socketaddress 
@@ -137,7 +147,7 @@ void *get_ipv4_or_ipv6_addr(struct sockaddr *socketaddress);
  * @param target A pointer to a memory block where to store the message.
  * @return 0 on success, or -1 on failure.
  */
-int getMessage(int connection, Message *target);
+int getMessage(ssl_context *ssl, Message *target);
 
 /**
  * @brief Send a message over connection
@@ -146,11 +156,11 @@ int getMessage(int connection, Message *target);
  * network message, with all the integers in network byte order. message_id is
  * converted to an unsigned byte.
  *
- * @param connection The socket to send on
+ * @param ssl The ssl context to send through
  * @param m The message to send
  * @return The number of bytes sent.
  */
-size_t sendMessage(int connection, Message *msg);
+size_t sendMessage(ssl_context *ssl, Message *msg);
 
 /**
  * @brief Print a message to stdout.
@@ -181,7 +191,7 @@ int connectToServer(char *hostname, char *port);
  * @param string The string to send.
  * @return 0 on sucess, else non-zero.
  */
-int sendNetworkString(int socket, char *string);
+int sendNetworkString(ssl_context *ssl, char *string);
 
 /**
  * 
@@ -204,7 +214,7 @@ void sigchld_handler(int s);
  *             program.
  * @return EXIT_FAILURE on failure, it should not return on success.
  */
-int start_server(char *port, void(*handle)(int), int *sock);
+int start_server(char *port, void(*handle)(ssl_context*), int *sock);
 
 /**
  * @brief Receive a network string.
@@ -216,7 +226,45 @@ int start_server(char *port, void(*handle)(int), int *sock);
  * @param nstr The network string to store the data in
  * @return 0 on success, else 1.
  */
-int getNetworkString(int socket, NetworkString *nstr);
+int getNetworkString(ssl_context *ssl, NetworkString *nstr);
 
+/**
+ * @brief Process the connection to the client.
+ *
+ * Initialize ssl, then call handle.
+ *
+ * @param sockfd The socket for the connection:
+ * @param handle The function to call when ssl is initialized.
+ */
+void process_client(int sockfd, void(*handle)(ssl_context*));
 
+/**
+ * @brief Initialize the ctr_drbg.
+ *
+ * @param entropy
+ * @param ctr_drbg
+ *
+ * @return 0 on success or the error from ctr_drbg_init.
+ */
+int init_ctr(entropy_context *entropy, ctr_drbg_context *ctr_drbg);
+
+/**
+ * @brief Used by polar ssl.
+ */
+void ssl_debug(void *ctx, int level, const char *str);
+
+/**
+ * @brief Initialize the ssl context.
+ *
+ * @param ssl
+ * @param entropy
+ * @param ctr_drbg
+ * @param sockfd
+ * @param endpoint Should be SSL_IS_CLIENT or SSL_IS_SERVER.
+ * 
+ * @return 0 on success, or the return value from ssl_init. If non-zerp the 
+ *         calling function should not proceed.
+ */
+int init_ssl(ssl_context *ssl, entropy_context *entropy, 
+		ctr_drbg_context *ctr_drbg, int *sockfd, int endpoint);
 #endif /* PROTOCOL_H */
